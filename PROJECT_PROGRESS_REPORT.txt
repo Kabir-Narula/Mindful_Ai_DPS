@@ -1,0 +1,107 @@
+MindfulAI - Project Progress Report
+Course: AI for Software Developers (DPS970NAA)
+Team: Kabir Narula
+Date: [Current Date]
+
+================================================================================
+WHAT YOUR GROUP HAS ACCOMPLISHED THUS FAR
+================================================================================
+
+I have successfully built a complete, working mental wellbeing and journaling 
+application called MindfulAI from scratch. The application includes a secure 
+authentication system where I implemented JWT-based authentication with HTTP-only 
+cookies. In my signup API route (`app/api/auth/signup/route.ts`), I validate 
+email format using regex patterns, ensure passwords are at least 8 characters, 
+hash passwords using bcrypt, and store user data in PostgreSQL. When users create 
+journal entries, my API route (`app/api/journal/route.ts`) validates the title 
+(must be under 200 characters), content (under 10,000 characters), and mood 
+rating (must be between 1-10). Every journal entry automatically triggers AI 
+sentiment analysis using OpenAI's GPT-3.5-turbo model through my `analyzeSentiment` 
+function in `lib/openai.ts`, which returns a sentiment score from -1 to 1, a 
+label (positive/neutral/negative), and personalized feedback. I also implemented 
+a comprehensive database schema using Prisma ORM with models for Users, 
+JournalEntries, MoodEntries, Goals, GoalCheckIns, ChatSessions, and ChatMessages, 
+all properly indexed for performance. The dashboard (`app/dashboard/page.tsx`) 
+calculates statistics like total journals, journaling streaks by checking 
+consecutive days with entries, and average mood scores from mood entries. I built 
+an AI chat companion that creates separate chat sessions, allows users to discuss 
+specific journal entries, and maintains conversation history. The chat API 
+(`app/api/chat/route.ts`) fetches the user's recent moods and journal entries to 
+provide context-aware responses. I also implemented goal tracking where users can 
+create goals with target dates and check in on their progress. The entire 
+application has a modern, professional UI built with Next.js 14, TypeScript, 
+Tailwind CSS, and shadcn/ui components, with full-screen layouts, smooth animations, 
+and responsive design that works on all devices. All API routes include proper 
+error handling, input validation, timeout protection (10 seconds for sentiment 
+analysis, 30 seconds for chat responses), and pagination support for journal 
+entries. The application is fully functional and production-ready.
+
+================================================================================
+WHAT TASKS YOUR GROUP WILL WORK ON THIS WEEK
+================================================================================
+
+This week I plan to add search and filter functionality to the journal page. 
+Currently, users can only see their entries in chronological order, but as they 
+accumulate more entries, finding specific ones becomes difficult. I will add a 
+search bar that queries the journal entry title and content fields in the database, 
+similar to how I currently fetch entries in `app/api/journal/route.ts` but with 
+additional WHERE clauses for text matching. I'll also add filter options for date 
+ranges (using Prisma's date range queries like `createdAt: { gte: startDate, lte: 
+endDate }`), mood ratings (filtering by the `moodRating` field), sentiment labels 
+(using the `sentimentLabel` field I already store), and activities (filtering by 
+the `activities` array field). I'll add sorting options similar to the existing 
+`orderBy: { createdAt: 'desc' }` but with additional options like mood high to 
+low. I'm also going to implement quick mood logging - a floating action button on 
+the dashboard that opens a modal where users can quickly rate their mood from 1-10 
+without writing a full journal entry. This will create a MoodEntry record directly 
+using the existing `prisma.moodEntry.create()` pattern, which will help collect 
+more mood data throughout the day. Additionally, I want to build mood pattern 
+analysis that will query the database to find correlations between activities and 
+mood scores. For example, I'll write queries that group entries by activities and 
+calculate average mood scores, then identify patterns like "Your mood improves by 
+20% on days when you exercise" by comparing mood scores for entries with 
+"Exercise" in the activities array versus those without. I'll also analyze time 
+of day patterns by grouping mood entries by hour of creation, and day of week 
+patterns by grouping by day name. These insights will be displayed in a new 
+"Patterns" section on the dashboard. I'll also polish the UI, improve form 
+validation with real-time feedback (similar to the validation I already have in 
+the signup route), add better loading states using skeleton components, and 
+thoroughly test all features to ensure everything works smoothly.
+
+================================================================================
+REVISED PLAN - WHY WE CHANGED FROM THE ORIGINAL PLAN
+================================================================================
+
+My original plan was to build the frontend with React and Vite, create a separate 
+Python backend using FastAPI, and use Python libraries like spaCy, NLTK, and VADER 
+to build my own sentiment analysis system. However, I changed to using Next.js 14 
+for both frontend and backend, and OpenAI's API for AI features instead. The main 
+reason is that Next.js lets me write everything in one codebase using TypeScript, 
+which is much simpler than managing two separate projects. For example, my journal 
+API route at `app/api/journal/route.ts` is in the same codebase as my dashboard 
+page at `app/dashboard/page.tsx`, so I can share types and utilities easily. 
+Instead of setting up a separate Python server, CORS configuration, and API 
+gateway, I just create API route files in the `app/api` directory and they work 
+automatically. This made development faster because I didn't need to configure 
+communication between frontend and backend - it's all in one place. Using OpenAI's 
+API instead of building my own NLP system gives me much better results. In my 
+`lib/openai.ts` file, I use GPT-3.5-turbo which understands context and provides 
+empathetic responses. For example, in my `analyzeSentiment` function, the AI 
+analyzes the full journal entry content and title together, not just keywords, 
+which gives more accurate sentiment scores. In my `getChatResponse` function, 
+the AI receives context about the user's recent moods, journal entries, and even 
+specific journal entries they want to discuss, allowing for much more helpful, 
+contextual responses than basic keyword matching with VADER would provide. I kept 
+all the important parts from the original plan - I still use PostgreSQL (as seen 
+in my `prisma/schema.prisma` file), JWT authentication (implemented in `lib/auth.ts` 
+and used in all API routes), mood tracking (stored in the MoodEntry model), and 
+goal features (Goal and GoalCheckIn models). I just built them in a simpler, more 
+modern way using Next.js API routes instead of FastAPI, Prisma ORM instead of 
+SQLAlchemy, and OpenAI instead of custom NLP pipelines. This approach is more 
+practical for a course project timeline since I can focus on building features 
+instead of complex AI infrastructure, and the results are actually better because 
+OpenAI's models are more advanced than basic NLP libraries.
+
+================================================================================
+END OF REPORT
+================================================================================
