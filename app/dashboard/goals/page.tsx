@@ -1,10 +1,8 @@
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import NewGoalForm from '@/components/dashboard/new-goal-form'
 import GoalCard from '@/components/dashboard/goal-card'
-import { Target } from 'lucide-react'
 
 export default async function GoalsPage() {
   const authUser = await getCurrentUser()
@@ -28,30 +26,37 @@ export default async function GoalsPage() {
   const completedGoals = goals.filter(g => g.completed)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Goals</h1>
-        <p className="text-gray-600 mt-1">Set and track your personal wellbeing goals</p>
+    <div className="space-y-12">
+      {/* Editorial Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-gray-200 pb-8">
+        <div className="space-y-2">
+          <span className="text-xs font-bold tracking-[0.2em] uppercase text-gray-400">
+            Aspirations
+          </span>
+          <h1 className="text-6xl md:text-7xl font-serif text-[#1A1A1A] leading-none">
+            The Goals.
+          </h1>
+        </div>
+        <NewGoalForm />
       </div>
 
-      <NewGoalForm />
-
       {goals.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Target className="h-16 w-16 text-muted-foreground mb-4" />
-            <p className="text-xl text-muted-foreground mb-2">No goals yet</p>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              Set your first goal to start building better habits and improving your wellbeing.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="py-24 text-center">
+          <p className="text-2xl font-serif text-gray-400 italic mb-8">
+            "A goal without a plan is just a wish."
+          </p>
+          <p className="text-sm font-bold uppercase tracking-widest text-gray-300">
+            Create your first goal to begin
+          </p>
+        </div>
       ) : (
-        <>
+        <div className="space-y-16">
           {activeGoals.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Active Goals</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-8">
+              <h2 className="text-xs font-bold tracking-[0.2em] uppercase text-gray-400 border-b border-gray-100 pb-4">
+                In Progress
+              </h2>
+              <div className="grid grid-cols-1 gap-8">
                 {activeGoals.map((goal) => (
                   <GoalCard key={goal.id} goal={goal} />
                 ))}
@@ -60,16 +65,18 @@ export default async function GoalsPage() {
           )}
 
           {completedGoals.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 text-muted-foreground">Completed Goals</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-8 opacity-60 hover:opacity-100 transition-opacity">
+              <h2 className="text-xs font-bold tracking-[0.2em] uppercase text-gray-400 border-b border-gray-100 pb-4">
+                Accomplished
+              </h2>
+              <div className="grid grid-cols-1 gap-8">
                 {completedGoals.map((goal) => (
                   <GoalCard key={goal.id} goal={goal} />
                 ))}
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )

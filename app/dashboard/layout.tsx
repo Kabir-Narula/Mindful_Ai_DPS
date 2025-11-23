@@ -9,7 +9,7 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const authUser = await getCurrentUser()
-  
+
   if (!authUser) {
     redirect('/login')
   }
@@ -28,9 +28,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F9F8F5]">
       <DashboardNav user={user} />
-      <main className="container mx-auto py-8 px-4 md:px-6">
+      <main className="max-w-[1600px] mx-auto py-12 px-8 md:px-16">
         {children}
       </main>
     </div>

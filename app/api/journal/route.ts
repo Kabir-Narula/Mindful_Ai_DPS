@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { analyzeSentiment } from '@/lib/openai'
+import { AnalysisService } from '@/lib/analysis-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,25 +57,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Analyze sentiment using OpenAI with timeout
-    let sentiment
-    try {
-      sentiment = await Promise.race([
-        analyzeSentiment(content, title),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Sentiment analysis timeout')), 10000)
-        )
-      ]) as Awaited<ReturnType<typeof analyzeSentiment>>
-    } catch (sentimentError) {
-      console.error('Sentiment analysis error:', sentimentError)
-      // Fallback to neutral sentiment if analysis fails
-      sentiment = {
-        score: 0,
-        label: 'neutral',
-        feedback: 'Thank you for sharing your thoughts. Keep journaling to track your emotional journey.',
-      }
-    }
-
     // Create journal entry
     const entry = await prisma.journalEntry.create({
       data: {
@@ -84,13 +65,13 @@ export async function POST(request: NextRequest) {
         content: content.trim(),
         moodRating: mood,
         activities: (activities || []).filter(Boolean),
-        sentiment: sentiment.score,
-        sentimentLabel: sentiment.label,
-        feedback: sentiment.feedback,
+        sentiment: 0,
+        sentimentLabel: 'neutral',
+        feedback: 'AI is analyzing your entry...',
       },
     })
 
-    // Also create a mood entry for tracking
+    // Create mood entry for tracking
     await prisma.moodEntry.create({
       data: {
         userId: user.userId,
@@ -99,11 +80,22 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json(entry, { status: 201 })
+    // Run AI analysis in background (don't await - return immediately)
+    AnalysisService.analyzeEntry(entry.id).catch((error) => {
+      console.error('Background AI analysis failed:', error)
+    })
+
+    // Return immediately with the entry ID
+    return NextResponse.json({
+      id: entry.id,
+      title: entry.title,
+      createdAt: entry.createdAt,
+      message: 'Journal entry created. AI analysis in progress...'
+    }, { status: 201 })
+
   } catch (error: any) {
     console.error('Journal creation error:', error)
     
-    // Handle Prisma errors
     if (error.code === 'P2002') {
       return NextResponse.json(
         { error: 'A journal entry with this information already exists' },
@@ -111,7 +103,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Handle validation errors
     if (error.name === 'ValidationError') {
       return NextResponse.json(
         { error: error.message },
@@ -133,10 +124,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get query parameters for pagination
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1', 10)
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100) // Max 100
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)
     const skip = (page - 1) * limit
 
     const [entries, total] = await Promise.all([
@@ -180,4 +170,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

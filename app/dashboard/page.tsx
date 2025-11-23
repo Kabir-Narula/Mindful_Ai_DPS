@@ -7,6 +7,22 @@ export default async function DashboardPage() {
   const authUser = await getCurrentUser()
   if (!authUser) redirect('/login')
 
+  // Get today's DayLog
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  // We need to query by userId and date range or exact date depending on how we stored it
+  // Since we stored it as @db.Date, prisma should handle the date object comparison if it matches the driver
+  // But to be safe with timezones in this prototype, let's try to find one created today or with the date
+  const dayLog = await prisma.dayLog.findUnique({
+    where: {
+      userId_date: {
+        userId: authUser.userId,
+        date: today
+      }
+    }
+  })
+
   // Get recent mood entries
   const moodEntries = await prisma.moodEntry.findMany({
     where: { userId: authUser.userId },
@@ -32,17 +48,14 @@ export default async function DashboardPage() {
   })
 
   // Calculate streak (consecutive days with journal entries)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
   let streak = 0
   let checkDate = new Date(today)
-  
+
   while (true) {
     const dayStart = new Date(checkDate)
     const dayEnd = new Date(checkDate)
     dayEnd.setHours(23, 59, 59, 999)
-    
+
     const entryExists = await prisma.journalEntry.findFirst({
       where: {
         userId: authUser.userId,
@@ -52,14 +65,14 @@ export default async function DashboardPage() {
         },
       },
     })
-    
+
     if (entryExists) {
       streak++
       checkDate.setDate(checkDate.getDate() - 1)
     } else {
       break
     }
-    
+
     if (streak > 100) break // Safety limit
   }
 
@@ -76,6 +89,7 @@ export default async function DashboardPage() {
       avgMood={avgMood}
       moodEntries={moodEntries}
       journalEntries={journalEntries}
+      dayLog={dayLog}
     />
   )
 }

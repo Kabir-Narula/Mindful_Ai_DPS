@@ -6,7 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { Plus, Loader2 } from 'lucide-react'
 
@@ -21,7 +27,7 @@ export default function NewGoalForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!title.trim()) {
       toast({
         title: 'Error',
@@ -69,62 +75,70 @@ export default function NewGoalForm() {
     }
   }
 
-  if (!open) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <Button onClick={() => setOpen(true)} className="w-full">
-            <Plus className="h-4 w-4 mr-2" />
-            Create New Goal
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Create a New Goal</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="goal-title">Goal Title *</Label>
-            <Input
-              id="goal-title"
-              placeholder="e.g., Meditate daily, Exercise 3x per week"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={loading}
-            />
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button className="inline-flex items-center justify-center h-12 px-8 bg-black text-white text-sm uppercase tracking-widest hover:bg-gray-800 transition-colors">
+          <Plus className="h-4 w-4 mr-2" />
+          New Goal
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-3xl">New Aspiration</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-8 mt-4">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="goal-title" className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                Title
+              </Label>
+              <Input
+                id="goal-title"
+                placeholder="What do you want to achieve?"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={loading}
+                className="font-serif text-xl border-b-2 border-x-0 border-t-0 rounded-none px-0 focus-visible:ring-0 focus-visible:border-black"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="goal-description" className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                Details (Optional)
+              </Label>
+              <Textarea
+                id="goal-description"
+                placeholder="Add context..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={loading}
+                rows={3}
+                className="resize-none border-b-2 border-x-0 border-t-0 rounded-none px-0 focus-visible:ring-0 focus-visible:border-black"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="goal-target" className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                Target Date (Optional)
+              </Label>
+              <Input
+                id="goal-target"
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                disabled={loading}
+                className="border-b-2 border-x-0 border-t-0 rounded-none px-0 focus-visible:ring-0 focus-visible:border-black"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="goal-description">Description (optional)</Label>
-            <Textarea
-              id="goal-description"
-              placeholder="Add any details about your goal..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+          <div className="flex gap-4">
+            <Button
+              type="submit"
               disabled={loading}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="goal-target">Target Date (optional)</Label>
-            <Input
-              id="goal-target"
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button type="submit" disabled={loading} className="flex-1">
+              className="flex-1 bg-black text-white hover:bg-gray-800 rounded-none uppercase tracking-widest text-xs font-bold h-12"
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Goal
             </Button>
@@ -133,13 +147,14 @@ export default function NewGoalForm() {
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={loading}
+              className="flex-1 rounded-none uppercase tracking-widest text-xs font-bold h-12"
             >
               Cancel
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   )
 }
 

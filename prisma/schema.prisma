@@ -23,8 +23,39 @@ model User {
   goals          Goal[]
   chatSessions   ChatSession[]
   chatMessages   ChatMessage[]
+  dayLogs        DayLog[]
+  patterns       Pattern[]
+  actionTrackings ActionTracking[]
   
   @@map("users")
+}
+
+model DayLog {
+  id              String    @id @default(cuid())
+  userId          String
+  date            DateTime  @db.Date // Store as YYYY-MM-DD (midnight)
+  
+  // The "Setup"
+  morningIntention String?  @db.Text
+  
+  // The "Insight" & "Action" (AI Generated)
+  dailyInsight    String?   @db.Text
+  suggestedAction String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journalEntries  JournalEntry[]
+  moodEntries     MoodEntry[]
+  goals           Goal[]         // Goals created *on* this day or *for* this day
+  actionTrackings ActionTracking[]
+  
+  @@unique([userId, date]) // One log per user per day
+  @@map("day_logs")
+  @@index([userId])
+  @@index([date])
 }
 
 model JournalEntry {
@@ -40,12 +71,16 @@ model JournalEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  dayLogId    String?
+  
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayLog DayLog? @relation(fields: [dayLogId], references: [id])
   chatSessions ChatSession[]
   
   @@map("journal_entries")
   @@index([userId])
   @@index([createdAt])
+  @@index([dayLogId])
 }
 
 model MoodEntry {
@@ -56,11 +91,15 @@ model MoodEntry {
   triggers    String[] // Things that affected mood
   createdAt   DateTime @default(now())
   
+  dayLogId    String?
+  
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayLog DayLog? @relation(fields: [dayLogId], references: [id])
   
   @@map("mood_entries")
   @@index([userId])
   @@index([createdAt])
+  @@index([dayLogId])
 }
 
 model Goal {
@@ -74,12 +113,16 @@ model Goal {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  dayLogId    String?
+  
   checkIns    GoalCheckIn[]
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayLog DayLog? @relation(fields: [dayLogId], references: [id])
   
   @@map("goals")
   @@index([userId])
+  @@index([dayLogId])
 }
 
 model GoalCheckIn {
@@ -129,3 +172,56 @@ model ChatMessage {
   @@index([createdAt])
 }
 
+model Pattern {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // 'temporal', 'activity', 'theme', 'correlation'
+  name        String   // AI-generated pattern name
+  description String   @db.Text // AI-generated detailed explanation
+  confidence  Float    // 0.0-1.0 confidence score
+  evidence    Json     // Evidence data: dates, mood scores, activities, etc.
+  insights    String   @db.Text // AI-generated insights about the pattern
+  suggestions String?  @db.Text // AI-generated suggestions to address pattern
+  
+  isActive    Boolean  @default(true)
+  dismissed   Boolean  @default(false)
+  dismissedAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("patterns")
+  @@index([userId])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model ActionTracking {
+  id              String   @id @default(cuid())
+  userId          String
+  dayLogId        String
+  suggestedAction String   @db.Text
+  
+  accepted        Boolean  @default(false)
+  acceptedAt      DateTime?
+  
+  completed       Boolean  @default(false)
+  completedAt     DateTime?
+  
+  helpfulnessScore Int?    // 1-5 scale: how helpful was this action?
+  userNote        String?  @db.Text // User's reflection on the action
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayLog DayLog @relation(fields: [dayLogId], references: [id], onDelete: Cascade)
+  
+  @@map("action_trackings")
+  @@index([userId])
+  @@index([dayLogId])
+  @@index([accepted])
+  @@index([completed])
+}

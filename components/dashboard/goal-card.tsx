@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
-import { CheckCircle2, Circle, Trash2, Calendar } from 'lucide-react'
+import { Trash2, Check, ArrowRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Goal {
   id: string
@@ -127,74 +125,74 @@ export default function GoalCard({ goal }: GoalCardProps) {
   }
 
   return (
-    <Card className={goal.completed ? 'opacity-75' : ''}>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3 flex-1">
-            <button
-              onClick={handleToggleComplete}
-              disabled={loading}
-              className="mt-1"
-            >
-              {goal.completed ? (
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              ) : (
-                <Circle className="h-5 w-5 text-gray-400" />
-              )}
-            </button>
-            <div className="flex-1">
-              <CardTitle className={`text-lg ${goal.completed ? 'line-through text-muted-foreground' : ''}`}>
-                {goal.title}
-              </CardTitle>
-              {goal.description && (
-                <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
-              )}
-            </div>
+    <div className={cn(
+      "group border-b border-gray-200 pb-8 transition-all",
+      goal.completed && "opacity-50 hover:opacity-100"
+    )}>
+      <div className="flex items-start gap-8">
+        {/* Custom Checkbox */}
+        <button
+          onClick={handleToggleComplete}
+          disabled={loading}
+          className={cn(
+            "flex-shrink-0 w-12 h-12 border-2 flex items-center justify-center transition-all mt-1",
+            goal.completed
+              ? "bg-black border-black text-white"
+              : "border-gray-200 hover:border-black text-transparent"
+          )}
+        >
+          <Check className="h-6 w-6" />
+        </button>
+
+        {/* Content */}
+        <div className="flex-1 space-y-4">
+          <div>
+            <h3 className={cn(
+              "text-3xl font-serif text-[#1A1A1A] transition-all",
+              goal.completed && "line-through decoration-gray-300 decoration-2"
+            )}>
+              {goal.title}
+            </h3>
+            {goal.description && (
+              <p className="text-lg text-gray-500 font-light mt-2 max-w-2xl leading-relaxed">
+                {goal.description}
+              </p>
+            )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
+
+          <div className="flex flex-wrap items-center gap-6 text-xs font-bold uppercase tracking-widest text-gray-400">
+            {goal.targetDate && (
+              <span>Target: {formatDate(goal.targetDate)}</span>
+            )}
+
+            {goal.checkIns.length > 0 && (
+              <span>{goal.checkIns.length} Check-ins</span>
+            )}
+
+            {!goal.completed && (
+              <button
+                onClick={handleCheckIn}
+                disabled={loading}
+                className="text-black hover:underline underline-offset-4"
+              >
+                + Check In Today
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
             onClick={handleDelete}
             disabled={loading}
-            className="text-red-600 hover:text-red-700"
+            className="w-12 h-12 flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
           >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+            <Trash2 className="h-5 w-5" />
+          </button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {goal.targetDate && (
-          <div className="flex items-center text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4 mr-2" />
-            Target: {formatDate(goal.targetDate)}
-          </div>
-        )}
-
-        {goal.checkIns.length > 0 && (
-          <div className="text-sm text-muted-foreground">
-            {goal.checkIns.length} check-in{goal.checkIns.length !== 1 ? 's' : ''}
-          </div>
-        )}
-
-        {!goal.completed && (
-          <Button
-            onClick={handleCheckIn}
-            disabled={loading}
-            variant="outline"
-            size="sm"
-            className="w-full"
-          >
-            Check In Today
-          </Button>
-        )}
-
-        {goal.completedAt && (
-          <p className="text-xs text-muted-foreground">
-            Completed on {formatDate(goal.completedAt)}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
