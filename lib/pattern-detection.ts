@@ -1,10 +1,7 @@
 import { prisma } from '@/lib/prisma'
-import OpenAI from 'openai'
+import { openai, GPT_MODEL_STANDARD, GPT_MODEL_FAST } from '@/lib/openai'
 import { startOfWeek, subWeeks, format } from 'date-fns'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { anonymizeText, parseAIJSON } from '@/lib/utils'
 
 interface PatternEvidence {
   dates: string[]
@@ -29,7 +26,7 @@ export class PatternDetectionService {
   /**
    * Main entry point: Analyze all patterns for a user using AI
    */
-  static async analyzeUserPatterns(userId: string): Promise<DetectedPattern[]> {
+  static async analyzeUserPatterns(userId: string, userProfile: any | null): Promise<DetectedPattern[]> {
     // Gather user data from last 4 weeks
     const userData = await this.gatherUserData(userId, 28)
     
@@ -49,7 +46,7 @@ export class PatternDetectionService {
     }
 
     // Use OpenAI to detect patterns
-    const detectedPatterns = await this.detectPatternsWithAI(userData)
+    const detectedPatterns = await this.detectPatternsWithAI(userData, userProfile)
     
     console.log('[Pattern Detection] Patterns detected:', detectedPatterns.length)
     
@@ -133,12 +130,22 @@ export class PatternDetectionService {
   /**
    * Use OpenAI to detect patterns from user data
    */
-  private static async detectPatternsWithAI(userData: any): Promise<DetectedPattern[]> {
+  private static async detectPatternsWithAI(userData: any, userProfile: any | null): Promise<DetectedPattern[]> {
     try {
       // Prepare data summary for AI
       const dataSummary = this.prepareDataSummary(userData)
 
-      const prompt = `You are an AI psychologist analyzing a user's behavioral patterns from their journal entries, mood data, and daily activities.
+      // 1. Determine System Persona
+      let systemPrompt = 'You are an expert cognitive behavioral therapist and data analyst specializing in identifying behavioral patterns from journal data.'
+      
+      if (userProfile) {
+        const { PersonalizationService } = await import('@/lib/personalization-service')
+        systemPrompt = PersonalizationService.generateSystemPrompt(userProfile)
+        // Add specific instruction for pattern detection role
+        systemPrompt += '\n\nROLE: You are acting as an expert analyst identifying behavioral patterns. Use the persona above to frame your INSIGHTS and SUGGESTIONS, but remain objective in your detection.'
+      }
+
+      const prompt = `Analyze the user's behavioral patterns from their journal entries, mood data, and daily activities.
 
 DATA SUMMARY:
 ${dataSummary}
@@ -196,11 +203,11 @@ Respond in JSON format with an array of patterns:
 Return ONLY valid JSON. Include 2-5 most significant patterns (or empty array if none found).`
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o', // Use GPT-4 for better pattern recognition
+        model: GPT_MODEL_STANDARD, // Use Standard for better pattern recognition
         messages: [
           {
             role: 'system',
-            content: 'You are an expert cognitive behavioral therapist and data analyst specializing in identifying behavioral patterns from journal data.',
+            content: systemPrompt,
           },
           {
             role: 'user',
@@ -212,7 +219,10 @@ Return ONLY valid JSON. Include 2-5 most significant patterns (or empty array if
         response_format: { type: 'json_object' },
       })
 
-      const result = JSON.parse(response.choices[0].message.content || '{"patterns":[]}')
+      const result = parseAIJSON<{ patterns: DetectedPattern[] }>(
+        response.choices[0].message.content || '', 
+        { patterns: [] }
+      )
       
       return result.patterns || []
     } catch (error) {
@@ -273,7 +283,9 @@ Return ONLY valid JSON. Include 2-5 most significant patterns (or empty array if
     const recentThemes = entries
       .slice(-10)
       .map((entry: any) => {
-        return `${format(entry.createdAt, 'MMM dd')}: "${entry.title}" (mood: ${entry.moodRating}/10, sentiment: ${entry.sentimentLabel || 'neutral'})`
+        // Anonymize and truncate content for privacy and token limits
+        const safeTitle = anonymizeText(entry.title).substring(0, 50)
+        return `${format(entry.createdAt, 'MMM dd')}: "${safeTitle}" (mood: ${entry.moodRating}/10, sentiment: ${entry.sentimentLabel || 'neutral'})`
       })
       .join('\n')
 
@@ -297,11 +309,11 @@ ${dayOfWeekSummary}
 ACTIVITY CORRELATIONS:
 ${topActivities || 'No activities tracked'}
 
-RECENT JOURNAL THEMES:
+RECENT JOURNAL THEMES (Anonymized):
 ${recentThemes}
 
 INSIGHTS FROM DAILY LOGS:
-${dayLogs.slice(-5).map((log: any) => log.dailyInsight).filter(Boolean).join('\n') || 'No recent insights'}
+${dayLogs.slice(-5).map((log: any) => anonymizeText(log.dailyInsight || '')).filter(Boolean).join('\n') || 'No recent insights'}
 `.trim()
 
     return summary
@@ -311,7 +323,7 @@ ${dayLogs.slice(-5).map((log: any) => log.dailyInsight).filter(Boolean).join('\n
    * Save detected patterns to database
    */
   static async savePatterns(userId: string, patterns: DetectedPattern[]) {
-    // First, mark existing active patterns as inactive
+    // 1. Archive existing active patterns
     await prisma.pattern.updateMany({
       where: {
         userId,
@@ -322,7 +334,20 @@ ${dayLogs.slice(-5).map((log: any) => log.dailyInsight).filter(Boolean).join('\n
       },
     })
 
-    // Create new patterns
+    // 2. CLEANUP: Delete old inactive patterns (older than 60 days) to prevent "Zombie Data"
+    const cleanupDate = new Date()
+    cleanupDate.setDate(cleanupDate.getDate() - 60)
+    
+    // We run this asynchronously and don't wait for it to prevent slowing down the main request
+    prisma.pattern.deleteMany({
+      where: {
+        userId,
+        isActive: false,
+        createdAt: { lt: cleanupDate }
+      }
+    }).catch(err => console.error('Pattern cleanup failed:', err))
+
+    // 3. Create new patterns
     const createdPatterns = await Promise.all(
       patterns.map((pattern) =>
         prisma.pattern.create({
@@ -380,7 +405,7 @@ ${dayLogs.slice(-5).map((log: any) => log.dailyInsight).filter(Boolean).join('\n
   /**
    * AI-powered smart prompt generation based on patterns
    */
-  static async generateSmartPrompt(userId: string): Promise<string | null> {
+  static async generateSmartPrompt(userId: string, userProfile: any | null): Promise<string | null> {
     try {
       const [activePatterns, todayLog, lastEntry, activeGoals] = await Promise.all([
         this.getActivePatterns(userId),
@@ -393,7 +418,15 @@ ${dayLogs.slice(-5).map((log: any) => log.dailyInsight).filter(Boolean).join('\n
         return null // No context to generate smart prompt
       }
 
-      const prompt = `You are a supportive life coach. Generate ONE concise journaling prompt for today.
+      // 1. Determine System Persona
+      let systemPrompt = 'You are a warm, supportive life coach who helps people reflect on their experiences.'
+      
+      if (userProfile) {
+        const { PersonalizationService } = await import('@/lib/personalization-service')
+        systemPrompt = PersonalizationService.generateSystemPrompt(userProfile)
+      }
+
+      const prompt = `Generate ONE concise journaling prompt for today.
 
 CONTEXT:
 ${activePatterns.length > 0 ? `
@@ -425,11 +458,11 @@ Examples:
 Return ONLY the prompt text, nothing else.`
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: GPT_MODEL_FAST,
         messages: [
           {
             role: 'system',
-            content: 'You are a warm, supportive life coach who helps people reflect on their experiences.',
+            content: systemPrompt,
           },
           {
             role: 'user',

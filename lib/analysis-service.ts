@@ -1,16 +1,21 @@
 import { prisma } from '@/lib/prisma'
-import OpenAI from 'openai'
+import { openai, GPT_MODEL_FAST } from '@/lib/openai'
 import { PatternDetectionService } from '@/lib/pattern-detection'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { parseAIJSON } from '@/lib/utils'
 
 // Enhanced AI analysis for extracting insights and actions
-async function generateAIAnalysis(content: string, title: string, activities: string[]) {
+async function generateAIAnalysis(content: string, title: string, activities: string[], userProfile: any | null) {
   try {
-    const prompt = `You are a compassionate life coach analyzing a user's journal entry.
+    // 1. Determine System Persona
+    let systemPrompt = 'You are a professional life coach specializing in cognitive behavioral therapy and positive psychology. You help users identify patterns and suggest small, actionable steps.'
+    
+    if (userProfile) {
+      // Use the personalized system prompt if profile exists
+      const { PersonalizationService } = await import('@/lib/personalization-service')
+      systemPrompt = PersonalizationService.generateSystemPrompt(userProfile)
+    }
 
+    const userPrompt = `Analyze this journal entry.
 Journal Title: "${title}"
 Activities: ${activities.join(', ') || 'None'}
 Content: "${content}"
@@ -18,16 +23,6 @@ Content: "${content}"
 Extract 2 things:
 1. INSIGHT: One behavioral pattern, cognitive distortion, or observation about their emotional state (max 1 sentence, 20 words)
 2. ACTION: One tiny, specific, actionable micro-challenge for tomorrow (max 1 sentence, 15 words)
-
-Examples of good outputs:
-- Insight: "You often take responsibility for things outside your control."
-  Action: "Tomorrow, delegate one small task before noon."
-
-- Insight: "You're celebrating wins but not acknowledging the effort behind them."
-  Action: "Write down one thing you did well and why it mattered."
-
-- Insight: "You tend to catastrophize when facing uncertainty."
-  Action: "List one worst-case scenario and one best-case scenario for tomorrow."
 
 Respond ONLY in JSON format:
 {
@@ -39,15 +34,15 @@ Respond ONLY in JSON format:
 }`
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: GPT_MODEL_FAST,
       messages: [
         {
           role: 'system',
-          content: 'You are a professional life coach specializing in cognitive behavioral therapy and positive psychology. You help users identify patterns and suggest small, actionable steps.',
+          content: systemPrompt,
         },
         {
           role: 'user',
-          content: prompt,
+          content: userPrompt,
         },
       ],
       temperature: 0.7,
@@ -55,7 +50,7 @@ Respond ONLY in JSON format:
       response_format: { type: 'json_object' },
     })
 
-    const result = JSON.parse(response.choices[0].message.content || '{}')
+    const result = parseAIJSON(response.choices[0].message.content || '{}', {})
     
     return {
       sentiment: result.sentiment || 0,
@@ -81,13 +76,22 @@ export class AnalysisService {
   static async analyzeEntry(entryId: string) {
     const entry = await prisma.journalEntry.findUnique({
       where: { id: entryId },
-      include: { user: true }
+      include: { 
+        user: {
+          include: { profile: true }
+        } 
+      }
     })
 
     if (!entry) throw new Error('Entry not found')
 
     // 1. Generate AI Analysis
-    const analysis = await generateAIAnalysis(entry.content, entry.title, entry.activities)
+    const analysis = await generateAIAnalysis(
+      entry.content, 
+      entry.title, 
+      entry.activities,
+      entry.user.profile
+    )
 
     // 2. Update Journal Entry
     await prisma.journalEntry.update({
@@ -130,7 +134,9 @@ export class AnalysisService {
     // Run pattern detection if user has enough data and it's time for refresh
     if (totalEntries >= 5 && totalEntries % 5 === 0) {
       // Run in background (don't await - let it complete async)
-      PatternDetectionService.analyzeUserPatterns(entry.userId)
+      // We need to refactor pattern detection to avoid circular dependency if we import types differently
+      // But for now, we just call it.
+      PatternDetectionService.analyzeUserPatterns(entry.userId, entry.user.profile)
         .then(patterns => PatternDetectionService.savePatterns(entry.userId, patterns))
         .catch(err => console.error('Background pattern detection failed:', err))
     }

@@ -1,0 +1,49 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getCurrentUser } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { moodSchema } from '@/lib/validations'
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    
+    // Zod Validation
+    const validation = moodSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation Failed', details: validation.error.flatten() },
+        { status: 400 }
+      )
+    }
+
+    const { score, type, context } = validation.data
+
+    const snapshot = await prisma.moodSnapshot.create({
+      data: {
+        userId: user.userId,
+        moodScore: score,
+        type,
+        context,
+      }
+    })
+
+    // SYNC FIX: Also create a MoodEntry so it appears in the legacy Feed/Graphs
+    await prisma.moodEntry.create({
+      data: {
+        userId: user.userId,
+        moodScore: score,
+        note: context || 'Pulse Check',
+        triggers: [],
+      }
+    })
+
+    return NextResponse.json(snapshot)
+  } catch (error) {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getChatResponse } from '@/lib/openai'
+import { UserContextService } from '@/lib/user-context-service'
+
+// EmpathyService is hypothetical or not yet implemented in this file's context,
+// so we will rely on UserContextService and the system prompt in getChatResponse.
+// If EmpathyService exists, we can import it, but UserContextService is the core.
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +24,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch user context
+    // Fetch basic dashboard context items (Recent moods/entries) for "Immediate Context"
     const [recentMoods, recentEntries, userData] = await Promise.all([
       prisma.moodEntry.findMany({
         where: { userId: user.userId },
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
       }),
       prisma.user.findUnique({
         where: { id: user.userId },
-        select: { name: true },
+        include: { profile: true },
       }),
     ])
 
@@ -62,7 +67,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Build chat context
+    // Build chat context object for the OpenAI wrapper
     const chatContext = {
       recentMoods,
       recentEntries,
@@ -70,11 +75,17 @@ export async function POST(request: NextRequest) {
       journalEntry: journalEntry || undefined,
     }
 
+    // Build DEEP context from the UserContextService (Patterns, CBT, Trends)
+    // This is the "Omniscience" layer.
+    const deepUserContext = await UserContextService.buildContext(user.userId)
+
     // Get AI response
     const response = await getChatResponse(
       message,
       chatContext,
-      conversationHistory || []
+      conversationHistory || [],
+      userData?.profile,
+      deepUserContext // Pass the deep context here
     )
 
     return NextResponse.json({ response })

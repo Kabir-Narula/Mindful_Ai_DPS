@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AnalysisService } from '@/lib/analysis-service'
+import { journalSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,73 +12,50 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, content, moodRating, activities } = body
-
-    // Validation
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    
+    // Zod Validation
+    const validation = journalSchema.safeParse(body)
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Title is required and must be a non-empty string' },
+        { error: 'Validation Failed', details: validation.error.flatten() },
         { status: 400 }
       )
     }
 
-    if (title.trim().length > 200) {
-      return NextResponse.json(
-        { error: 'Title must be 200 characters or less' },
-        { status: 400 }
-      )
-    }
-
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Content is required and must be a non-empty string' },
-        { status: 400 }
-      )
-    }
-
-    if (content.trim().length > 10000) {
-      return NextResponse.json(
-        { error: 'Content must be 10,000 characters or less' },
-        { status: 400 }
-      )
-    }
-
-    const mood = Number(moodRating)
-    if (!moodRating || isNaN(mood) || mood < 1 || mood > 10) {
-      return NextResponse.json(
-        { error: 'Mood rating must be a number between 1 and 10' },
-        { status: 400 }
-      )
-    }
-
-    if (activities && (!Array.isArray(activities) || activities.some(a => typeof a !== 'string'))) {
-      return NextResponse.json(
-        { error: 'Activities must be an array of strings' },
-        { status: 400 }
-      )
-    }
+    const { title, content, moodRating, activities } = validation.data
 
     // Create journal entry
     const entry = await prisma.journalEntry.create({
       data: {
         userId: user.userId,
-        title: title.trim(),
-        content: content.trim(),
-        moodRating: mood,
-        activities: (activities || []).filter(Boolean),
+        title,
+        content,
+        moodRating,
+        activities,
         sentiment: 0,
         sentimentLabel: 'neutral',
         feedback: 'AI is analyzing your entry...',
       },
     })
 
-    // Create mood entry for tracking
+    // Create mood entry for tracking (Unified Mood/Journal Logic)
     await prisma.moodEntry.create({
       data: {
         userId: user.userId,
-        moodScore: mood,
-        note: title.trim(),
+        moodScore: moodRating,
+        note: title,
+        triggers: activities,
       },
+    })
+
+    // Also create a MoodSnapshot for the new granular tracking system
+    await prisma.moodSnapshot.create({
+      data: {
+        userId: user.userId,
+        moodScore: moodRating,
+        type: 'journaling',
+        context: title,
+      }
     })
 
     // Run AI analysis in background (don't await - return immediately)

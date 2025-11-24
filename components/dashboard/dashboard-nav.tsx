@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Brain, LogOut, MessageSquare } from 'lucide-react'
+import { Brain, LogOut, Menu, MessageCircle } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -13,6 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
@@ -26,11 +33,31 @@ interface DashboardNavProps {
   }
 }
 
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/archive', label: 'Archive' },
+  { href: '/dashboard/insights', label: 'Insights' },
+  { href: '/cbt', label: 'Exercises' },
+]
+
+const getInitials = (name: string | null, email: string): string => {
+  if (name) {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+  return email[0].toUpperCase()
+}
+
 export default function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
   const [chatOpen, setChatOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleLogout = async () => {
     try {
@@ -50,51 +77,73 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     }
   }
 
-  const navItems = [
-    { href: '/dashboard', label: 'Overview' },
-    { href: '/dashboard/journal', label: 'Journal' },
-    { href: '/dashboard/goals', label: 'Goals' },
-    { href: '/dashboard/patterns', label: 'Patterns' },
-  ]
-
-  const getInitials = (name: string | null, email: string) => {
-    if (name) {
-      return name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    }
-    return email[0].toUpperCase()
-  }
-
   // Determine context based on current page
   const getChatContext = () => {
-    if (pathname.includes('/journal/')) {
-      const id = pathname.split('/').pop()
-      return { page: 'journal', entryId: id }
+    if (pathname.includes('/cbt')) {
+      return { page: 'cbt' }
     }
-    if (pathname.includes('/goals')) {
-      return { page: 'goals' }
+    if (pathname.includes('/insights')) {
+      return { page: 'insights' }
     }
     return { page: 'dashboard' }
   }
 
   return (
     <>
-      <nav className="sticky top-0 z-50 bg-[#F9F8F5]/80 backdrop-blur-sm border-b border-gray-200/50">
-        <div className="max-w-[1600px] mx-auto px-8 md:px-16">
-          <div className="flex items-center justify-between h-20">
-            <div className="flex items-center gap-12">
-              <Link href="/dashboard" className="flex items-center gap-3 group">
-                <div className="h-8 w-8 bg-black text-white flex items-center justify-center rounded-none group-hover:bg-gray-800 transition-colors">
+      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8">
+          <div className="flex items-center justify-between h-16 md:h-20">
+            <div className="flex items-center gap-8">
+              {/* Mobile Menu Trigger */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Menu className="h-5 w-5" />
+                    <span className="sr-only">Open menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                  <SheetHeader>
+                    <SheetTitle className="font-serif text-left text-xl">Mindful AI</SheetTitle>
+                  </SheetHeader>
+                  <div className="flex flex-col gap-4 mt-8">
+                    {navItems.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "text-lg font-medium transition-colors hover:text-primary",
+                          pathname === item.href ? "text-primary font-bold" : "text-muted-foreground"
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                    <Button 
+                      variant="outline" 
+                      className="mt-4 justify-start gap-2"
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        setChatOpen(true)
+                      }}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      Chat with AI Companion
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              <Link href="/dashboard" className="flex items-center gap-2 md:gap-3 group">
+                <div className="h-8 w-8 bg-primary text-primary-foreground flex items-center justify-center rounded-sm group-hover:opacity-90 transition-opacity">
                   <Brain className="h-4 w-4" />
                 </div>
-                <span className="text-lg font-serif font-bold tracking-tight text-black">Mindful AI</span>
+                <span className="text-lg font-serif font-bold tracking-tight text-foreground hidden sm:inline-block">Mindful AI</span>
               </Link>
 
-              <div className="hidden md:flex items-center gap-8">
+              {/* Desktop Nav */}
+              <div className="hidden md:flex items-center gap-6">
                 {navItems.map((item) => {
                   const isActive = pathname === item.href
                   return (
@@ -102,8 +151,8 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        "text-sm font-medium tracking-wide transition-colors hover:text-black",
-                        isActive ? "text-black border-b border-black pb-1" : "text-gray-500"
+                        "text-sm font-medium tracking-wide transition-colors hover:text-foreground",
+                        isActive ? "text-foreground border-b-2 border-primary pb-1" : "text-muted-foreground"
                       )}
                     >
                       {item.label}
@@ -113,23 +162,24 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* AI Chat Button */}
-              <Button
-                variant="outline"
-                size="sm"
+            <div className="flex items-center gap-2 md:gap-4">
+              {/* Chat Trigger (Desktop) */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="hidden md:flex"
                 onClick={() => setChatOpen(true)}
-                className="hidden md:flex items-center gap-2"
+                title="Chat with AI Companion"
               >
-                <MessageSquare className="h-4 w-4" />
-                <span>AI Coach</span>
+                <MessageCircle className="h-5 w-5" />
               </Button>
 
+              {/* User Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                    <Avatar className="h-10 w-10 rounded-none">
-                      <AvatarFallback className="rounded-none bg-gray-200 text-gray-700 font-bold">
+                    <Avatar className="h-9 w-9 md:h-10 md:w-10 rounded-full border border-border">
+                      <AvatarFallback className="bg-muted text-muted-foreground font-medium">
                         {getInitials(user.name, user.email)}
                       </AvatarFallback>
                     </Avatar>
@@ -145,7 +195,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>

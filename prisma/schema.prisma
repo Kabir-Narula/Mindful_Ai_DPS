@@ -26,6 +26,10 @@ model User {
   dayLogs        DayLog[]
   patterns       Pattern[]
   actionTrackings ActionTracking[]
+  profile        UserProfile?
+  moodSnapshots  MoodSnapshot[]
+  therapyExercises TherapyExercise[]
+  weeklyReflections WeeklyReflection[]
   
   @@map("users")
 }
@@ -41,6 +45,9 @@ model DayLog {
   // The "Insight" & "Action" (AI Generated)
   dailyInsight    String?   @db.Text
   suggestedAction String?   @db.Text
+  
+  // The "Synthesis"
+  eveningReflection String? @db.Text
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -224,4 +231,110 @@ model ActionTracking {
   @@index([dayLogId])
   @@index([accepted])
   @@index([completed])
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  
+  // Demographics
+  ageGroup        String   // 'under-18', '18-24', '25-34', etc.
+  lifeStage       String   // 'student', 'working', 'between-opportunities'
+  
+  // Communication Preferences
+  communicationStyle String // 'casual', 'conversational', 'reflective', 'direct'
+  preferredTone      String // Derived from style
+  
+  // Interests & Hobbies (for relatable suggestions)
+  hobbies         String[] // ['gaming', 'creative', 'learning', etc.]
+  interests       Json?    // Detailed breakdown (optional)
+  
+  // Mental Health Context
+  currentWellbeing Int     // 1-10 scale
+  primaryGoals     String[] // What they want to work on
+  
+  // AI Personality Settings (computed from above)
+  aiPersona       String   // 'supportive-friend', 'wise-guide', 'motivational-coach'
+  
+  // Onboarding
+  onboardingComplete Boolean @default(false)
+  onboardedAt        DateTime?
+  
+  // Tutorial/Walkthrough
+  tutorialCompleted Boolean @default(false)
+  tutorialCompletedAt DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model MoodSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  moodScore   Int      // 1-10
+  context     String?  // What's happening
+  timestamp   DateTime @default(now())
+  
+  // For before/after tracking
+  type        String   // 'baseline', 'pre-activity', 'post-activity'
+  activityType String? // 'breathing', 'journaling', 'walk', etc.
+  relatedTo   String?  // ID of 'before' snapshot if this is 'after'
+  improvement Int?     // Calculated: after - before
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mood_snapshots")
+  @@index([userId])
+  @@index([type])
+}
+
+model TherapyExercise {
+  id              String   @id @default(cuid())
+  userId          String
+  type            String   // 'thought-challenging', 'behavioral-activation'
+  
+  // For Thought Challenging
+  originalThought String?  @db.Text
+  reframedThought String?  @db.Text
+  conversation    Json?    // The full dialogue context
+  
+  // For Behavioral Activation
+  activity        String?
+  moodBefore      Int?
+  moodAfter       Int?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("therapy_exercises")
+  @@index([userId])
+  @@index([type])
+}
+
+
+model WeeklyReflection {
+  id              String   @id @default(cuid())
+  userId          String
+  weekOf          DateTime
+  bestMoment      String?  @db.Text
+  hardestMoment   String?  @db.Text
+  howHandled      String?  @db.Text
+  adviceForNextWeek String? @db.Text
+  avgMood         Float?
+  daysJournaled   Int      @default(0)
+  bestDay         String?
+  toughestDay     String?
+  moodTrend       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("weekly_reflections")
+  @@index([userId])
+  @@index([weekOf])
 }

@@ -2,94 +2,93 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import DashboardContent from '@/components/dashboard/dashboard-content'
+import { StreakService } from '@/lib/streak-service'
+import { FeedEntry } from '@/lib/types'
 
 export default async function DashboardPage() {
   const authUser = await getCurrentUser()
   if (!authUser) redirect('/login')
 
-  // Get today's DayLog
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // 1. Standard Midnight Reset Logic
+  const now = new Date()
+  now.setHours(0, 0, 0, 0) 
+  const endOfToday = new Date(now)
+  endOfToday.setHours(23, 59, 59, 999)
 
-  // We need to query by userId and date range or exact date depending on how we stored it
-  // Since we stored it as @db.Date, prisma should handle the date object comparison if it matches the driver
-  // But to be safe with timezones in this prototype, let's try to find one created today or with the date
-  const dayLog = await prisma.dayLog.findUnique({
+  const dayLogRaw = await prisma.dayLog.findUnique({
     where: {
       userId_date: {
         userId: authUser.userId,
-        date: today
+        date: now
       }
     }
   })
 
-  // Get recent mood entries
-  const moodEntries = await prisma.moodEntry.findMany({
-    where: { userId: authUser.userId },
-    orderBy: { createdAt: 'desc' },
-    take: 30,
-  })
+  // Map to our DayLog interface (handle type mismatch with Prisma client)
+  const dayLog = dayLogRaw ? {
+    id: dayLogRaw.id,
+    morningIntention: dayLogRaw.morningIntention,
+    dailyInsight: dayLogRaw.dailyInsight,
+    suggestedAction: dayLogRaw.suggestedAction,
+    eveningReflection: (dayLogRaw as any).eveningReflection ?? null
+  } : null
 
-  // Get recent journal entries
-  const journalEntries = await prisma.journalEntry.findMany({
-    where: { userId: authUser.userId },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-  })
-
-  // Get stats
-  const totalJournals = await prisma.journalEntry.count({
-    where: { userId: authUser.userId },
-  })
-
-  const user = await prisma.user.findUnique({
-    where: { id: authUser.userId },
-    select: { name: true, createdAt: true },
-  })
-
-  // Calculate streak (consecutive days with journal entries)
-  let streak = 0
-  let checkDate = new Date(today)
-
-  while (true) {
-    const dayStart = new Date(checkDate)
-    const dayEnd = new Date(checkDate)
-    dayEnd.setHours(23, 59, 59, 999)
-
-    const entryExists = await prisma.journalEntry.findFirst({
-      where: {
+  // 2. Fetch Feed Data (User-generated content only: Moods + Journals)
+  const [moodEntries, journalEntries, user, streakData] = await Promise.all([
+    prisma.moodEntry.findMany({
+      where: { 
         userId: authUser.userId,
-        createdAt: {
-          gte: dayStart,
-          lte: dayEnd,
-        },
+        createdAt: { gte: now } 
       },
-    })
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.journalEntry.findMany({
+      where: { 
+        userId: authUser.userId,
+        createdAt: { gte: now }
+      },
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.user.findUnique({
+      where: { id: authUser.userId },
+      select: { id: true, name: true, createdAt: true, email: true },
+    }),
+    StreakService.getStreak(authUser.userId)
+  ])
 
-    if (entryExists) {
-      streak++
-      checkDate.setDate(checkDate.getDate() - 1)
-    } else {
-      break
-    }
+  // Merge and Sort Feed (User-generated content only)
+  const feedEntries: FeedEntry[] = [
+    ...moodEntries.map(m => ({ 
+      id: m.id,
+      type: 'mood' as const,
+      createdAt: m.createdAt,
+      moodScore: m.moodScore,
+      note: m.note,
+      triggers: m.triggers
+    })),
+    ...journalEntries.map(j => ({ 
+      id: j.id,
+      type: 'journal' as const,
+      createdAt: j.createdAt,
+      title: j.title,
+      content: j.content,
+      moodScore: j.moodRating,
+      sentimentLabel: j.sentimentLabel
+    }))
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-    if (streak > 100) break // Safety limit
-  }
-
-  // Calculate average mood
-  const avgMood = moodEntries.length > 0
-    ? moodEntries.reduce((sum, entry) => sum + entry.moodScore, 0) / moodEntries.length
-    : null
+  if (!user) return null // Should be handled by auth check but satisfies TS
 
   return (
     <DashboardContent
-      user={user}
-      totalJournals={totalJournals}
-      streak={streak}
-      avgMood={avgMood}
-      moodEntries={moodEntries}
-      journalEntries={journalEntries}
+      user={{
+        id: user.id,
+        name: user.name,
+        email: user.email
+      }}
+      streak={streakData}
       dayLog={dayLog}
+      feedEntries={feedEntries}
     />
   )
 }
