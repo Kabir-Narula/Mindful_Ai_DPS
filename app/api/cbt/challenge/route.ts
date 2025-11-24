@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { CBTService } from '@/lib/cbt-service'
 
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()

@@ -3,6 +3,9 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { moodSchema } from '@/lib/validations'
 
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()

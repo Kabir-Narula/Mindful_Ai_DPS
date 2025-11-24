@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // 1. Auth Check

@@ -3,6 +3,9 @@ import { getCurrentUser } from '@/lib/auth'
 import { PatternDetectionService } from '@/lib/pattern-detection'
 import { prisma } from '@/lib/prisma'
 
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/patterns
  * Get all active patterns for the current user

@@ -3,6 +3,9 @@ import { getCurrentUser } from '@/lib/auth'
 import { PatternDetectionService } from '@/lib/pattern-detection'
 import { prisma } from '@/lib/prisma'
 
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()

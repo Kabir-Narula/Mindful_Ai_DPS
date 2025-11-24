@@ -4,9 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { getChatResponse } from '@/lib/openai'
 import { UserContextService } from '@/lib/user-context-service'
 
-// EmpathyService is hypothetical or not yet implemented in this file's context,
-// so we will rely on UserContextService and the system prompt in getChatResponse.
-// If EmpathyService exists, we can import it, but UserContextService is the core.
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {

@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { AnalysisService } from '@/lib/analysis-service'
 import { journalSchema } from '@/lib/validations'
 
+// Force dynamic rendering (this route uses cookies for auth)
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser()
