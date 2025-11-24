@@ -1,5 +1,6 @@
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
 import { Card } from '@/components/ui/card'
 import { Brain, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
@@ -7,12 +8,19 @@ import ThoughtChallenge from '@/components/cbt/thought-challenge'
 import DashboardNav from '@/components/dashboard/dashboard-nav'
 
 export default async function CBTPage() {
-  const user = await getCurrentUser()
+  const authUser = await getCurrentUser()
+  if (!authUser) redirect('/login')
+
+  const user = await prisma.user.findUnique({
+    where: { id: authUser.userId },
+    select: { id: true, name: true, email: true }
+  })
+
   if (!user) redirect('/login')
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardNav user={{ id: user.userId, name: user.name, email: user.email }} />
+      <DashboardNav user={{ id: user.id, name: user.name, email: user.email }} />
       
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
@@ -35,7 +43,7 @@ export default async function CBTPage() {
                     </div>
                 </div>
                 
-                <ThoughtChallenge userId={user.userId} />
+                       <ThoughtChallenge userId={user.id} />
             </Card>
 
             {/* Placeholder for future exercises */}

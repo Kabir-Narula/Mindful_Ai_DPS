@@ -50,14 +50,22 @@ Respond ONLY in JSON format:
       response_format: { type: 'json_object' },
     })
 
-    const result = parseAIJSON(response.choices[0].message.content || '{}', {})
+    const fallback = {
+      sentiment: 0,
+      sentimentLabel: 'neutral' as const,
+      feedback: 'Thank you for sharing your thoughts.',
+      insight: 'Keep reflecting on your experiences.',
+      action: 'Take one small step toward your goals tomorrow.'
+    }
+    
+    const result = parseAIJSON<typeof fallback>(response.choices[0].message.content || '{}', fallback)
     
     return {
-      sentiment: result.sentiment || 0,
-      sentimentLabel: result.sentimentLabel || 'neutral',
-      feedback: result.feedback || 'Thank you for sharing your thoughts.',
-      insight: result.insight || 'Keep reflecting on your experiences.',
-      action: result.action || 'Take one small step toward your goals tomorrow.',
+      sentiment: result.sentiment ?? 0,
+      sentimentLabel: result.sentimentLabel ?? 'neutral',
+      feedback: result.feedback ?? 'Thank you for sharing your thoughts.',
+      insight: result.insight ?? 'Keep reflecting on your experiences.',
+      action: result.action ?? 'Take one small step toward your goals tomorrow.',
     }
   } catch (error) {
     console.error('AI Analysis error:', error)

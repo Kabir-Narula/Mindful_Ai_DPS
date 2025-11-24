@@ -1,7 +1,23 @@
 import OpenAI from 'openai'
 
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// Lazy initialization to avoid build-time errors when API key is not available
+let _openai: OpenAI | null = null
+
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is required')
+    }
+    _openai = new OpenAI({ apiKey })
+  }
+  return _openai
+}
+
+export const openai = new Proxy({} as OpenAI, {
+  get(_target, prop) {
+    return getOpenAI()[prop as keyof OpenAI]
+  }
 })
 
 // Centralized Model Constants

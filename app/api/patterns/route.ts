@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { PatternDetectionService } from '@/lib/pattern-detection'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /api/patterns
@@ -36,10 +37,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Fetch user profile for personalization
+    const userProfile = await prisma.userProfile.findUnique({
+      where: { userId: user.userId }
+    })
+
     console.log('[Pattern Detection] Starting for user:', user.userId)
 
     // Detect patterns using AI
-    const detectedPatterns = await PatternDetectionService.analyzeUserPatterns(user.userId)
+    const detectedPatterns = await PatternDetectionService.analyzeUserPatterns(user.userId, userProfile)
 
     console.log('[Pattern Detection] Detected patterns:', detectedPatterns.length)
 

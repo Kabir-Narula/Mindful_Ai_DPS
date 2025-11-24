@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
         ageGroup: '25-34', // Default
         lifeStage: 'working', // Default
         communicationStyle: 'conversational', // Default
+        preferredTone: 'conversational', // Required field - derived from communicationStyle
         hobbies: [],
         currentWellbeing: 5, // Neutral
         primaryGoals: [],
