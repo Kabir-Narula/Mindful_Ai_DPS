@@ -7,23 +7,30 @@ import TutorialNotebook from '@/components/tutorial/tutorial-notebook'
 
 interface TutorialWrapperProps {
   tutorialCompleted: boolean
+  userCreatedAt: Date
   children: React.ReactNode
 }
 
-export default function TutorialWrapper({ tutorialCompleted, children }: TutorialWrapperProps) {
+export default function TutorialWrapper({ tutorialCompleted, userCreatedAt, children }: TutorialWrapperProps) {
   const [showWalkthrough, setShowWalkthrough] = useState(false)
   const [isCompleted, setIsCompleted] = useState(tutorialCompleted)
   const router = useRouter()
 
   useEffect(() => {
-    // Only show walkthrough if user hasn't completed it AND hasn't dismissed it
-    // Check localStorage to see if user has dismissed it
+    // Logic: Only show if:
+    // 1. Not completed
+    // 2. Not dismissed in this session (localStorage)
+    // 3. User is "new" (created within last 24 hours)
+    
     const dismissed = localStorage.getItem('tutorial-dismissed')
-    if (!isCompleted && !dismissed) {
-      // Small delay to let page render - but make it less intrusive
-      setTimeout(() => setShowWalkthrough(true), 1000)
+    const isNewUser = new Date().getTime() - new Date(userCreatedAt).getTime() < 24 * 60 * 60 * 1000
+
+    if (!isCompleted && !dismissed && isNewUser) {
+      // Small delay to let page render
+      const timer = setTimeout(() => setShowWalkthrough(true), 1500)
+      return () => clearTimeout(timer)
     }
-  }, [isCompleted])
+  }, [isCompleted, userCreatedAt])
 
   const handleComplete = async () => {
     try {

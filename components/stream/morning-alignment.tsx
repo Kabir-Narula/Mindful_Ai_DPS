@@ -25,10 +25,13 @@ export default function MorningAlignment({ userId, existingIntention }: MorningA
 
     setLoading(true)
     try {
+      // Pass current date in ISO format so server respects user's timezone
+      const userDate = new Date().toISOString()
+      
       const res = await fetch('/api/day-log/intention', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intention }),
+        body: JSON.stringify({ intention, userDate }),
       })
 
       if (!res.ok) throw new Error('Failed to save intention')

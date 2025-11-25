@@ -4,24 +4,28 @@ import { redirect } from 'next/navigation'
 import DashboardContent from '@/components/dashboard/dashboard-content'
 import { StreakService } from '@/lib/streak-service'
 import { FeedEntry } from '@/lib/types'
+import { addHours, subHours } from 'date-fns'
 
 export default async function DashboardPage() {
   const authUser = await getCurrentUser()
   if (!authUser) redirect('/login')
 
-  // 1. Standard Midnight Reset Logic
+  // 1. Standard Midnight Reset Logic (Server Side)
+  // FIX: We broaden the search window to capture entries from users in timezones ahead of UTC (e.g. Asia/Australia)
+  // We fetch from 24 hours ago to cover "Today" in any timezone.
+  // The Client Component will filter strictly for the user's local "Today".
   const now = new Date()
-  now.setHours(0, 0, 0, 0) 
-  const endOfToday = new Date(now)
-  endOfToday.setHours(23, 59, 59, 999)
+  const searchStart = subHours(now, 24) 
 
-  const dayLogRaw = await prisma.dayLog.findUnique({
+  const dayLogRaw = await prisma.dayLog.findFirst({
     where: {
-      userId_date: {
-        userId: authUser.userId,
-        date: now
+      userId: authUser.userId,
+      date: {
+        gte: subHours(new Date(), 36),
+        lte: addHours(new Date(), 24) // Allow for future dates if user is in timezone ahead of server
       }
-    }
+    },
+    orderBy: { date: 'desc' }
   })
 
   // Map to our DayLog interface (handle type mismatch with Prisma client)
@@ -34,18 +38,19 @@ export default async function DashboardPage() {
   } : null
 
   // 2. Fetch Feed Data (User-generated content only: Moods + Journals)
+  // Using broad searchStart window
   const [moodEntries, journalEntries, user, streakData] = await Promise.all([
     prisma.moodEntry.findMany({
       where: { 
         userId: authUser.userId,
-        createdAt: { gte: now } 
+        createdAt: { gte: searchStart } 
       },
       orderBy: { createdAt: 'desc' }
     }),
     prisma.journalEntry.findMany({
       where: { 
         userId: authUser.userId,
-        createdAt: { gte: now }
+        createdAt: { gte: searchStart }
       },
       orderBy: { createdAt: 'desc' }
     }),
@@ -75,7 +80,7 @@ export default async function DashboardPage() {
       moodScore: j.moodRating,
       sentimentLabel: j.sentimentLabel
     }))
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 
   if (!user) return null // Should be handled by auth check but satisfies TS
 

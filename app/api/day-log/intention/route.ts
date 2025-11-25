@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { intention } = await request.json()
+    const { intention, userDate } = await request.json()
 
     if (!intention || typeof intention !== 'string') {
       return NextResponse.json(
@@ -21,19 +21,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Use user-provided date if available to fix timezone issues (e.g. IST vs UTC)
+    // Otherwise fall back to server time
+    let targetDate = new Date()
+    if (userDate) {
+       targetDate = new Date(userDate)
+    }
+    
+    // Normalize to midnight UTC for DB uniqueness
+    // This ensures "Nov 25" in Client becomes "Nov 25 00:00:00 UTC" in DB
+    targetDate.setUTCHours(0, 0, 0, 0)
 
     const dayLog = await prisma.dayLog.upsert({
       where: {
         userId_date: {
           userId: user.userId,
-          date: today
+          date: targetDate
         }
       },
       create: {
         userId: user.userId,
-        date: today,
+        date: targetDate,
         morningIntention: intention
       },
       update: {

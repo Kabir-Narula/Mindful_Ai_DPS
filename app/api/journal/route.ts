@@ -41,16 +41,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Create mood entry for tracking (Unified Mood/Journal Logic)
-    await prisma.moodEntry.create({
-      data: {
-        userId: user.userId,
-        moodScore: moodRating,
-        note: title,
-        triggers: activities,
-      },
-    })
-
     // Also create a MoodSnapshot for the new granular tracking system
     await prisma.moodSnapshot.create({
       data: {

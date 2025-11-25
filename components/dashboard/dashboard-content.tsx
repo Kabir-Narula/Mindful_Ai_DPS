@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import MorningAlignment from '@/components/stream/morning-alignment'
 import PulseCheck from '@/components/stream/pulse-check'
 import DailySynthesis from '@/components/stream/daily-synthesis'
@@ -10,8 +10,9 @@ import AIProactiveCoach from '@/components/dashboard/ai-proactive-coach'
 import QuickJournalModal from '@/components/dashboard/quick-journal-modal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { PenLine, Sparkles, ArrowRight } from 'lucide-react'
+import { PenLine, Sparkles, ArrowRight, Moon, CheckCircle2 } from 'lucide-react'
 import { DashboardData } from '@/lib/types'
+import Link from 'next/link'
 
 interface DashboardContentProps extends DashboardData {}
 
@@ -22,12 +23,96 @@ export default function DashboardContent({
   feedEntries
 }: DashboardContentProps) {
   const [quickJournalOpen, setQuickJournalOpen] = useState(false)
-  const isNewUser = feedEntries.length === 0 && !dayLog?.morningIntention
+  const [tutorialActive, setTutorialActive] = useState(false)
+  
+  // Filter feed entries for client-side "Today" to fix timezone issues
+  const todayStr = new Date().toLocaleDateString()
+  const todayEntries = feedEntries.filter(entry => 
+     new Date(entry.createdAt).toLocaleDateString() === todayStr
+  )
+
+  const isNewUser = todayEntries.length === 0 && !dayLog?.morningIntention
+  const isDayComplete = !!dayLog?.eveningReflection
+
+  // Check if tutorial is active
+  useEffect(() => {
+    const checkTutorial = () => {
+        const tutorialOverlay = document.getElementById('walkthrough-overlay')
+        setTutorialActive(!!tutorialOverlay)
+    }
+    
+    const handleTutorialStart = () => setTutorialActive(true)
+    const handleTutorialEnd = () => setTutorialActive(false)
+
+    window.addEventListener('tutorial-start', handleTutorialStart)
+    window.addEventListener('tutorial-end', handleTutorialEnd)
+    
+    const timer = setTimeout(checkTutorial, 1000)
+
+    return () => {
+        window.removeEventListener('tutorial-start', handleTutorialStart)
+        window.removeEventListener('tutorial-end', handleTutorialEnd)
+        clearTimeout(timer)
+    }
+  }, [])
 
   if (!user) return null
 
-  // NEW USER WELCOME STATE - Immediate Value
-  if (isNewUser) {
+  // --- STATE 1: DAY COMPLETE (LOCKED) ---
+  // If day is done (and tutorial not active), show the "Good Night" screen.
+  if (isDayComplete && !tutorialActive) {
+    return (
+      <div className="max-w-3xl mx-auto py-20 px-4">
+        <div className="text-center space-y-8">
+            <div className="inline-flex items-center justify-center p-4 bg-indigo-50 rounded-full mb-4">
+                <Moon className="h-12 w-12 text-indigo-600" />
+            </div>
+            
+            <h1 className="text-5xl md:text-6xl font-serif font-bold text-gray-900">
+                Day Complete.
+            </h1>
+            
+            <p className="text-xl text-gray-600 max-w-xl mx-auto leading-relaxed">
+                You've closed the loop for today. Rest well, and come back tomorrow for a fresh page.
+            </p>
+
+            <Card className="p-8 bg-white border-2 border-gray-100 shadow-sm max-w-lg mx-auto text-left mt-12">
+                <h3 className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-6 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    Daily Summary
+                </h3>
+                
+                <div className="space-y-6">
+                    {dayLog.morningIntention && (
+                        <div>
+                            <p className="text-sm text-gray-500 mb-1">Intention</p>
+                            <p className="font-serif text-lg text-gray-900">"{dayLog.morningIntention}"</p>
+                        </div>
+                    )}
+                    
+                    <div className="h-px bg-gray-100" />
+
+                    <div>
+                        <p className="text-sm text-gray-500 mb-1">Reflection</p>
+                        <p className="font-serif text-lg text-gray-900 italic">"{dayLog.eveningReflection}"</p>
+                    </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center">
+                     <Link href="/dashboard/archive">
+                        <Button variant="outline" className="rounded-full">
+                            View in Archive
+                        </Button>
+                     </Link>
+                </div>
+            </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // --- STATE 2: NEW USER WELCOME ---
+  if (isNewUser && !tutorialActive) {
     return (
       <div className="max-w-4xl mx-auto pb-24 px-4 md:px-8">
         <div className="text-center py-20 space-y-8">
@@ -61,10 +146,6 @@ export default function DashboardContent({
                 Write Your First Entry
                 <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
-
-              <p className="text-xs text-gray-400 mt-4">
-                Tip: You can always come back and explore more features later. For now, just write.
-              </p>
             </div>
           </Card>
         </div>
@@ -77,10 +158,10 @@ export default function DashboardContent({
     )
   }
 
-  // EXISTING USER - Simplified Dashboard
+  // --- STATE 3: STANDARD DASHBOARD ---
   return (
     <div className="max-w-6xl mx-auto pb-24 px-4 md:px-8">
-      {/* Simplified Header */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 py-8 border-b border-gray-200 mb-8">
         <div className="space-y-1">
            <h1 className="text-4xl md:text-5xl font-serif font-bold text-gray-900">
@@ -103,45 +184,46 @@ export default function DashboardContent({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Main Content - Simplified */}
+        {/* Main Content */}
         <div className="lg:col-span-8 space-y-8">
-            {/* Morning Intention - Only show if not set */}
-            {!dayLog?.morningIntention && (
+            {/* Morning Intention - Show if active or tutorial is running (ghost mode) */}
+            {(!dayLog?.morningIntention || tutorialActive) && (
               <div data-tour="morning-alignment">
                 <MorningAlignment 
                     userId={user.id} 
-                    existingIntention={null} 
+                    existingIntention={tutorialActive ? null : dayLog?.morningIntention} 
                 />
               </div>
             )}
 
-            {/* Pulse Check - Always visible but simplified */}
+            {/* Pulse Check */}
             <div data-tour="pulse-check">
                 <PulseCheck 
                     userId={user.id} 
                     morningIntention={dayLog?.morningIntention}
+                    lastMoodEntryTime={todayEntries.filter(e => e.type === 'mood').slice(-1)[0]?.createdAt}
                 />
             </div>
 
-            {/* Feed - The main content */}
+            {/* Feed */}
             <div data-tour="daily-feed">
-                <DailyFeed entries={feedEntries} />
+                <DailyFeed entries={todayEntries} />
             </div>
 
-            {/* Evening Synthesis - Only show if there are entries */}
-            {feedEntries.length > 0 && dayLog && (
-              <DailySynthesis 
-                  dayLogId={dayLog.id} 
-                  morningIntention={dayLog.morningIntention}
-                  entriesCount={feedEntries.length}
+            {/* Evening Synthesis */}
+            {(todayEntries.length > 0 && dayLog) || tutorialActive ? (
+               <DailySynthesis 
+                  dayLogId={dayLog?.id || ''} 
+                  morningIntention={dayLog?.morningIntention || ''}
+                  entriesCount={todayEntries.length}
               />
-            )}
+            ) : null}
         </div>
 
-        {/* Sidebar - Simplified */}
+        {/* Sidebar */}
         <div className="lg:col-span-4 space-y-6">
             <div className="sticky top-24 space-y-6">
-                {streak.current > 0 && (
+                {(streak.current > 0 || tutorialActive) && (
                   <div data-tour="streak-counter">
                     <StreakCounter userId={user.id} streak={streak} />
                   </div>

@@ -22,6 +22,7 @@ export default async function DashboardLayout({
       id: true,
       name: true,
       email: true,
+      createdAt: true,
       profile: {
         select: {
           onboardingComplete: true,
@@ -40,7 +41,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <TutorialWrapper tutorialCompleted={user.profile?.tutorialCompleted ?? false}>
+    <TutorialWrapper 
+      tutorialCompleted={user.profile?.tutorialCompleted ?? false}
+      userCreatedAt={user.createdAt}
+    >
       <div className="min-h-screen bg-[#F9F8F5]">
         <DashboardNav user={{ id: user.id, name: user.name, email: user.email }} />
         <main className="px-8 md:px-16 py-12">

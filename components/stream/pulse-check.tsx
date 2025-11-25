@@ -1,29 +1,60 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Zap, HeartPulse, AlertCircle } from 'lucide-react'
+import { Loader2, Zap, HeartPulse, AlertCircle, Clock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import ThoughtChallenge from '@/components/cbt/thought-challenge'
 
 interface PulseCheckProps {
   userId: string
   morningIntention?: string | null
+  lastMoodEntryTime?: Date | string
 }
 
-export default function PulseCheck({ userId, morningIntention }: PulseCheckProps) {
+export default function PulseCheck({ userId, morningIntention, lastMoodEntryTime }: PulseCheckProps) {
   const [step, setStep] = useState<'mood' | 'intervention' | 'complete'>('mood')
   const [mood, setMood] = useState(5)
   const [loading, setLoading] = useState(false)
   const [showCBT, setShowCBT] = useState(false)
+  const [minutesRemaining, setMinutesRemaining] = useState<number>(0)
   const { toast } = useToast()
   const router = useRouter()
 
+  // Check if user can check in (limit 1 per hour)
+  const canCheckIn = minutesRemaining <= 0
+
+  useEffect(() => {
+    if (!lastMoodEntryTime) {
+      setMinutesRemaining(0)
+      return
+    }
+
+    const checkTime = () => {
+      const lastTime = new Date(lastMoodEntryTime).getTime()
+      const now = new Date().getTime()
+      const diffSeconds = (now - lastTime) / 1000
+      
+      if (diffSeconds < 15) {
+        setMinutesRemaining(Math.ceil(15 - diffSeconds))
+      } else {
+        setMinutesRemaining(0)
+      }
+    }
+
+    checkTime()
+    // Update every second
+    const interval = setInterval(checkTime, 1000)
+    return () => clearInterval(interval)
+  }, [lastMoodEntryTime])
+
   const handleCheckIn = async () => {
+    if (!canCheckIn) return
+
     // Optimistic update
     const previousStep = step
     setStep(mood < 5 ? 'intervention' : 'complete')
@@ -57,6 +88,24 @@ export default function PulseCheck({ userId, morningIntention }: PulseCheckProps
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!canCheckIn) {
+    return (
+      <Card className="p-6 border border-gray-200 shadow-sm bg-gray-50/50">
+         <div className="flex items-center gap-2 text-gray-400 font-bold uppercase tracking-widest text-xs mb-4">
+          <HeartPulse className="h-4 w-4" />
+          <span>Pulse Check</span>
+        </div>
+        <div className="text-center py-6 space-y-2">
+           <div className="mx-auto h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
+              <Clock className="h-5 w-5 text-gray-400" />
+           </div>
+           <p className="text-gray-600 font-medium">Check back in {minutesRemaining}s</p>
+           <p className="text-xs text-gray-400">We limit check-ins to keep it meaningful.</p>
+        </div>
+      </Card>
+    )
   }
 
   return (
@@ -173,4 +222,3 @@ export default function PulseCheck({ userId, morningIntention }: PulseCheckProps
     </Card>
   )
 }
-
