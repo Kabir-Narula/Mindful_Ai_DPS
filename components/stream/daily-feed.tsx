@@ -1,33 +1,57 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
+import { motion } from 'framer-motion'
 import { Card } from '@/components/ui/card'
 import { getMoodEmoji } from '@/lib/utils'
 import { FeedEntry } from '@/lib/types'
-import { ChevronDown, ChevronUp, Sparkles, Lightbulb, Moon } from 'lucide-react'
+import { ChevronDown, ChevronUp, Sparkles, Lightbulb, Moon, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { formatInToronto } from '@/lib/timezone'
 
 interface DailyFeedProps {
-  entries: FeedEntry[]
+    entries: FeedEntry[]
 }
 
 export default function DailyFeed({ entries }: DailyFeedProps) {
-  if (entries.length === 0) {
-    return (
-      <div className="text-center py-12 border-l-2 border-dashed border-gray-200 ml-4 pl-8">
-        <p className="text-gray-400 italic font-serif">The page is blank. Write your story.</p>
-      </div>
-    )
-  }
+    if (entries.length === 0) {
+        return (
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-16 border-l-2 border-dashed border-gray-200/60 ml-4 pl-8"
+            >
+                <div className="flex flex-col items-center gap-4">
+                    <div className="p-4 bg-gray-50 rounded-2xl">
+                        <PenLine className="h-8 w-8 text-gray-300" />
+                    </div>
+                    <div>
+                        <p className="text-gray-400 font-serif text-lg italic mb-1">The page is blank.</p>
+                        <p className="text-gray-400 text-sm">Begin writing your story for today.</p>
+                    </div>
+                </div>
+            </motion.div>
+        )
+    }
 
-  return (
-    <div className="relative space-y-12 ml-4 pl-8 border-l border-gray-200 py-4">
-      {entries.map((entry) => (
-        <FeedItem key={entry.id} entry={entry} />
-      ))}
-    </div>
-  )
+    return (
+        <div className="relative space-y-10 ml-4 pl-8 border-l border-gray-200/60 py-4">
+            {entries.map((entry, index) => (
+                <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                        duration: 0.4,
+                        delay: index * 0.1,
+                        ease: [0.16, 1, 0.3, 1]
+                    }}
+                >
+                    <FeedItem entry={entry} />
+                </motion.div>
+            ))}
+        </div>
+    )
 }
 
 function FeedItem({ entry }: { entry: FeedEntry }) {
@@ -35,7 +59,7 @@ function FeedItem({ entry }: { entry: FeedEntry }) {
     const isLongContent = entry.content && entry.content.length > 280
 
     const getLabel = (type: FeedEntry['type']) => {
-        switch(type) {
+        switch (type) {
             case 'mood': return 'Pulse Check'
             case 'journal': return 'Journal Entry'
             case 'pattern': return 'AI Insight'
@@ -53,22 +77,21 @@ function FeedItem({ entry }: { entry: FeedEntry }) {
 
             <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-3 text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400">
-                    <span>{format(new Date(entry.createdAt), 'h:mm a')}</span>
+                    <span>{formatInToronto(new Date(entry.createdAt), 'h:mm a')}</span>
                     <span className="w-px h-3 bg-gray-300" />
                     <span className={entry.type === 'pattern' ? 'text-amber-600' : ''}>{getLabel(entry.type)}</span>
                 </div>
 
                 {/* Card Content Based on Type */}
-                <Card className={`p-6 md:p-8 transition-all duration-500 ${
-                    entry.type === 'mood' 
-                    ? 'bg-gray-50/50 border-transparent shadow-none' 
+                <Card className={`p-6 md:p-8 transition-all duration-500 ${entry.type === 'mood'
+                    ? 'bg-gray-50/50 border-transparent shadow-none'
                     : entry.type === 'pattern'
-                    ? 'bg-amber-50/30 border-amber-200/50 shadow-sm'
-                    : entry.type === 'reflection'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xl'
-                    : 'bg-white border-gray-100 shadow-sm hover:shadow-md'
-                }`}>
-                    
+                        ? 'bg-amber-50/30 border-amber-200/50 shadow-sm'
+                        : entry.type === 'reflection'
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-xl'
+                            : 'bg-white border-gray-100 shadow-sm hover:shadow-md'
+                    }`}>
+
                     {/* 1. MOOD ENTRY */}
                     {entry.type === 'mood' && (
                         <div className="flex items-center gap-6">
@@ -95,7 +118,7 @@ function FeedItem({ entry }: { entry: FeedEntry }) {
                                     {entry.title}
                                 </h3>
                             )}
-                            
+
                             <div className={`relative ${!expanded && isLongContent ? 'max-h-[140px] overflow-hidden' : ''}`}>
                                 <p className="text-gray-700 text-lg leading-relaxed font-serif whitespace-pre-wrap opacity-90">
                                     {entry.content}
@@ -106,9 +129,9 @@ function FeedItem({ entry }: { entry: FeedEntry }) {
                             </div>
 
                             {isLongContent && (
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
                                     onClick={() => setExpanded(!expanded)}
                                     className="mt-4 text-xs font-bold tracking-widest uppercase text-gray-400 hover:text-black h-auto p-0 hover:bg-transparent"
                                 >
@@ -162,7 +185,7 @@ function FeedItem({ entry }: { entry: FeedEntry }) {
                     {/* 4. WEEKLY REFLECTION ENTRY (New) */}
                     {entry.type === 'reflection' && (
                         <div className="relative">
-                             <div className="absolute -top-4 -right-4 opacity-10">
+                            <div className="absolute -top-4 -right-4 opacity-10">
                                 <Moon className="h-32 w-32 text-indigo-500" />
                             </div>
                             <h3 className="text-2xl font-serif font-bold text-white mb-2">
@@ -171,7 +194,7 @@ function FeedItem({ entry }: { entry: FeedEntry }) {
                             <p className="text-slate-300 mb-6">
                                 {entry.content}
                             </p>
-                            
+
                             {entry.stats && (
                                 <div className="grid grid-cols-3 gap-4 border-t border-slate-700 pt-6">
                                     <div>

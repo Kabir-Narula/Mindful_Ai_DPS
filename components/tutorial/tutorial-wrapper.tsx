@@ -17,17 +17,20 @@ export default function TutorialWrapper({ tutorialCompleted, userCreatedAt, chil
   const router = useRouter()
 
   useEffect(() => {
-    // Logic: Only show if:
-    // 1. Not completed
-    // 2. Not dismissed in this session (localStorage)
-    // 3. User is "new" (created within last 24 hours)
-    
-    const dismissed = localStorage.getItem('tutorial-dismissed')
-    const isNewUser = new Date().getTime() - new Date(userCreatedAt).getTime() < 24 * 60 * 60 * 1000
+    // Simplified logic: Show tutorial if:
+    // 1. Not already completed (in database)
+    // 2. Not dismissed in THIS browser session
+    //
+    // The localStorage key is now user-specific to prevent cross-user issues
+    // and we clear it on completion so it only tracks the current session
 
-    if (!isCompleted && !dismissed && isNewUser) {
-      // Small delay to let page render
-      const timer = setTimeout(() => setShowWalkthrough(true), 1500)
+    const userDismissedKey = `tutorial-dismissed-${userCreatedAt.getTime()}`
+    const dismissed = sessionStorage.getItem(userDismissedKey) === 'true'
+
+    // If tutorial not completed in DB and not dismissed this session, show it
+    if (!isCompleted && !dismissed) {
+      // Small delay to let page render and ensure smooth transition
+      const timer = setTimeout(() => setShowWalkthrough(true), 1000)
       return () => clearTimeout(timer)
     }
   }, [isCompleted, userCreatedAt])
@@ -40,7 +43,7 @@ export default function TutorialWrapper({ tutorialCompleted, userCreatedAt, chil
       if (res.ok) {
         setIsCompleted(true)
         setShowWalkthrough(false)
-        localStorage.setItem('tutorial-dismissed', 'true')
+        // Clear any old dismiss flags since we completed properly
         router.refresh()
       }
     } catch (error) {
@@ -50,16 +53,18 @@ export default function TutorialWrapper({ tutorialCompleted, userCreatedAt, chil
 
   const handleDismiss = () => {
     setShowWalkthrough(false)
-    localStorage.setItem('tutorial-dismissed', 'true')
-    // Don't mark as completed in DB, just dismiss for this session
+    // Use sessionStorage so dismiss only lasts for this browser session
+    // Next session they'll see the tutorial again unless they complete it
+    const userDismissedKey = `tutorial-dismissed-${userCreatedAt.getTime()}`
+    sessionStorage.setItem(userDismissedKey, 'true')
   }
 
   return (
     <>
       {children}
-      
+
       {/* Walkthrough Overlay - Only show if not dismissed */}
-      <Walkthrough 
+      <Walkthrough
         onComplete={handleComplete}
         onDismiss={handleDismiss}
         isVisible={showWalkthrough && !isCompleted}

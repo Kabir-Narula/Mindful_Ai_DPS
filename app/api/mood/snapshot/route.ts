@@ -26,24 +26,26 @@ export async function POST(req: NextRequest) {
 
     const { score, type, context } = validation.data
 
-    const snapshot = await prisma.moodSnapshot.create({
-      data: {
-        userId: user.userId,
-        moodScore: score,
-        type,
-        context,
-      }
-    })
-
-    // SYNC FIX: Also create a MoodEntry so it appears in the legacy Feed/Graphs
-    await prisma.moodEntry.create({
-      data: {
-        userId: user.userId,
-        moodScore: score,
-        note: context || 'Pulse Check',
-        triggers: [],
-      }
-    })
+    // OPTIMIZED: Create both entries in parallel for faster response
+    const [snapshot] = await Promise.all([
+      prisma.moodSnapshot.create({
+        data: {
+          userId: user.userId,
+          moodScore: score,
+          type,
+          context,
+        }
+      }),
+      // SYNC FIX: Also create a MoodEntry so it appears in the legacy Feed/Graphs
+      prisma.moodEntry.create({
+        data: {
+          userId: user.userId,
+          moodScore: score,
+          note: context || 'Pulse Check',
+          triggers: [],
+        }
+      })
+    ])
 
     return NextResponse.json(snapshot)
   } catch (error) {

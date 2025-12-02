@@ -1,12 +1,12 @@
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { format, parseISO, startOfDay, endOfDay, subHours, addHours } from 'date-fns'
 import { FeedEntry } from '@/lib/types'
 import DailyFeed from '@/components/stream/daily-feed'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Calendar } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { parseDateForDB, getDateSearchWindow, formatUTCDate } from '@/lib/timezone'
 
 interface ArchiveDayPageProps {
     params: {
@@ -18,19 +18,20 @@ export default async function ArchiveDayPage({ params }: ArchiveDayPageProps) {
     const user = await getCurrentUser()
     if (!user) redirect('/login')
 
-    let displayDate = parseISO(params.date)
-    
-    // FIX: Widen the search window to account for Timezone Offsets.
-    const start = subHours(startOfDay(displayDate), 14) 
-    const end = addHours(endOfDay(displayDate), 14)
+    // Parse the date from URL (YYYY-MM-DD format)
+    // This creates a UTC midnight date for the calendar date
+    const targetDate = parseDateForDB(params.date)
 
-    // Fetch Data for that specific day (Broad Query)
+    // Get the search window for entries on this date in Toronto timezone
+    const { start, end } = getDateSearchWindow(targetDate)
+
+    // Fetch Data for that specific day
     const [dayLogRaw, moodEntries, journalEntries] = await Promise.all([
         prisma.dayLog.findUnique({
             where: {
                 userId_date: {
                     userId: user.userId,
-                    date: startOfDay(displayDate) // DayLog is strictly keyed to UTC date for now
+                    date: targetDate
                 }
             }
         }),
@@ -39,18 +40,18 @@ export default async function ArchiveDayPage({ params }: ArchiveDayPageProps) {
                 userId: user.userId,
                 createdAt: { gte: start, lte: end }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'asc' } // Chronological order
         }),
         prisma.journalEntry.findMany({
             where: {
                 userId: user.userId,
                 createdAt: { gte: start, lte: end }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'asc' } // Chronological order
         })
     ])
 
-    // Merge Feed
+    // Merge Feed entries chronologically
     const feedEntries: FeedEntry[] = [
         ...moodEntries.map(m => ({
             id: m.id,
@@ -69,23 +70,10 @@ export default async function ArchiveDayPage({ params }: ArchiveDayPageProps) {
             moodScore: j.moodRating,
             sentimentLabel: j.sentimentLabel
         }))
-    ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) // Chronological (Morning -> Evening)
+    ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 
-    // SMART HEADER FIX:
-    // If the URL date is "Nov 24" (UTC) but the entries are actually from "Nov 25" (User Time),
-    // update the header to match the entries so the user sees "Nov 25".
-    if (feedEntries.length > 0) {
-        // Take the date of the first entry (earliest)
-        const firstEntryDate = new Date(feedEntries[0].createdAt)
-        
-        // If the day differs from the URL param, perform a sanity check
-        // (e.g. only override if the URL date is clearly "yesterday" relative to content)
-        // For simplicity in this MVP, if content exists, TRUST THE CONTENT's date.
-        
-        // However, we need to be careful not to jump days wildly. 
-        // Let's just use the first entry's date as the "True Date" for display.
-        displayDate = firstEntryDate
-    }
+    // Use the target date from URL for display (it's already the correct calendar date)
+    const displayDate = targetDate
 
     // Map dayLog to ensure type safety
     const dayLog = dayLogRaw ? {
@@ -105,16 +93,16 @@ export default async function ArchiveDayPage({ params }: ArchiveDayPageProps) {
                         Back to Archive
                     </Button>
                 </Link>
-                
+
                 <div className="text-center space-y-4">
                     <p className="text-xs font-bold tracking-[0.3em] uppercase text-gray-400">
-                        Issue No. {format(displayDate, 'd')}
+                        Issue No. {formatUTCDate(displayDate, 'd')}
                     </p>
                     <h1 className="text-5xl md:text-7xl font-serif font-bold text-gray-900">
-                        {format(displayDate, 'MMMM d')}
+                        {formatUTCDate(displayDate, 'MMMM d')}
                     </h1>
                     <p className="text-xl font-serif italic text-gray-500">
-                        {format(displayDate, 'EEEE, yyyy')}
+                        {formatUTCDate(displayDate, 'EEEE, yyyy')}
                     </p>
                 </div>
             </div>

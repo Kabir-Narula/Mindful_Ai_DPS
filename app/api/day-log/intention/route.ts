@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { parseDateForDB, getTodayInTimezone } from '@/lib/timezone'
 
 // Force dynamic rendering (this route uses cookies for auth)
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { intention, userDate } = await request.json()
+    const { intention, localDate } = await request.json()
 
     if (!intention || typeof intention !== 'string') {
       return NextResponse.json(
@@ -21,16 +22,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use user-provided date if available to fix timezone issues (e.g. IST vs UTC)
-    // Otherwise fall back to server time
-    let targetDate = new Date()
-    if (userDate) {
-       targetDate = new Date(userDate)
+    // Use client-provided local date (YYYY-MM-DD format) if available
+    // This ensures the correct calendar date in Toronto timezone is used
+    // Falls back to server's Toronto date if not provided
+    let targetDate: Date
+    if (localDate && typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(localDate)) {
+      targetDate = parseDateForDB(localDate)
+    } else {
+      targetDate = getTodayInTimezone()
     }
-    
-    // Normalize to midnight UTC for DB uniqueness
-    // This ensures "Nov 25" in Client becomes "Nov 25 00:00:00 UTC" in DB
-    targetDate.setUTCHours(0, 0, 0, 0)
 
     const dayLog = await prisma.dayLog.upsert({
       where: {
@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       dayLog,
       message: 'Morning intention saved'
     }, { status: 200 })

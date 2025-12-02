@@ -4,53 +4,42 @@ import { redirect } from 'next/navigation'
 import DashboardContent from '@/components/dashboard/dashboard-content'
 import { StreakService } from '@/lib/streak-service'
 import { FeedEntry } from '@/lib/types'
-import { addHours, subHours } from 'date-fns'
+import { getTodayInTimezone, getStartOfDayInToronto, getEndOfDayInToronto } from '@/lib/timezone'
 
 export default async function DashboardPage() {
   const authUser = await getCurrentUser()
   if (!authUser) redirect('/login')
 
-  // 1. Standard Midnight Reset Logic (Server Side)
-  // FIX: We broaden the search window to capture entries from users in timezones ahead of UTC (e.g. Asia/Australia)
-  // We fetch from 24 hours ago to cover "Today" in any timezone.
-  // The Client Component will filter strictly for the user's local "Today".
-  const now = new Date()
-  const searchStart = subHours(now, 24) 
+  // Get today's date in Toronto timezone (normalized to UTC midnight for DB key)
+  const todayDate = getTodayInTimezone()
 
-  const dayLogRaw = await prisma.dayLog.findFirst({
-    where: {
-      userId: authUser.userId,
-      date: {
-        gte: subHours(new Date(), 36),
-        lte: addHours(new Date(), 24) // Allow for future dates if user is in timezone ahead of server
+  // Get the actual time boundaries for "today" in Toronto timezone
+  const todayStart = getStartOfDayInToronto()
+  const todayEnd = getEndOfDayInToronto()
+
+  // OPTIMIZED: Fetch ALL data in a single parallel batch for maximum performance
+  const [dayLogRaw, moodEntries, journalEntries, user, streakData] = await Promise.all([
+    // Fetch the day log for TODAY in Toronto timezone
+    prisma.dayLog.findUnique({
+      where: {
+        userId_date: {
+          userId: authUser.userId,
+          date: todayDate
+        }
       }
-    },
-    orderBy: { date: 'desc' }
-  })
-
-  // Map to our DayLog interface (handle type mismatch with Prisma client)
-  const dayLog = dayLogRaw ? {
-    id: dayLogRaw.id,
-    morningIntention: dayLogRaw.morningIntention,
-    dailyInsight: dayLogRaw.dailyInsight,
-    suggestedAction: dayLogRaw.suggestedAction,
-    eveningReflection: (dayLogRaw as any).eveningReflection ?? null
-  } : null
-
-  // 2. Fetch Feed Data (User-generated content only: Moods + Journals)
-  // Using broad searchStart window
-  const [moodEntries, journalEntries, user, streakData] = await Promise.all([
+    }),
+    // Fetch Feed Data (User-generated content only: Moods + Journals)
     prisma.moodEntry.findMany({
-      where: { 
+      where: {
         userId: authUser.userId,
-        createdAt: { gte: searchStart } 
+        createdAt: { gte: todayStart, lte: todayEnd }
       },
       orderBy: { createdAt: 'desc' }
     }),
     prisma.journalEntry.findMany({
-      where: { 
+      where: {
         userId: authUser.userId,
-        createdAt: { gte: searchStart }
+        createdAt: { gte: todayStart, lte: todayEnd }
       },
       orderBy: { createdAt: 'desc' }
     }),
@@ -61,9 +50,18 @@ export default async function DashboardPage() {
     StreakService.getStreak(authUser.userId)
   ])
 
+  // Map to our DayLog interface (handle type mismatch with Prisma client)
+  const dayLog = dayLogRaw ? {
+    id: dayLogRaw.id,
+    morningIntention: dayLogRaw.morningIntention,
+    dailyInsight: dayLogRaw.dailyInsight,
+    suggestedAction: dayLogRaw.suggestedAction,
+    eveningReflection: (dayLogRaw as any).eveningReflection ?? null
+  } : null
+
   // Merge and Sort Feed (User-generated content only)
   const feedEntries: FeedEntry[] = [
-    ...moodEntries.map(m => ({ 
+    ...moodEntries.map(m => ({
       id: m.id,
       type: 'mood' as const,
       createdAt: m.createdAt,
@@ -71,7 +69,7 @@ export default async function DashboardPage() {
       note: m.note,
       triggers: m.triggers
     })),
-    ...journalEntries.map(j => ({ 
+    ...journalEntries.map(j => ({
       id: j.id,
       type: 'journal' as const,
       createdAt: j.createdAt,

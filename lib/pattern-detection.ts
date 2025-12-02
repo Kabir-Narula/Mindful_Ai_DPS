@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { openai, GPT_MODEL_STANDARD, GPT_MODEL_FAST } from '@/lib/openai'
-import { startOfWeek, subWeeks, format } from 'date-fns'
+import { subDays } from 'date-fns'
 import { anonymizeText, parseAIJSON } from '@/lib/utils'
+import { getTodayInTimezone, formatInToronto } from '@/lib/timezone'
 
 interface PatternEvidence {
   dates: string[]
@@ -57,8 +58,8 @@ export class PatternDetectionService {
    * Gather comprehensive user data for analysis
    */
   private static async gatherUserData(userId: string, days: number) {
-    const since = new Date()
-    since.setDate(since.getDate() - days)
+    // Use Toronto timezone for consistent date boundaries
+    const since = subDays(new Date(), days)
 
     console.log('[Pattern Detection] Querying for userId:', userId, 'since:', since)
 
@@ -129,101 +130,82 @@ export class PatternDetectionService {
 
   /**
    * Use OpenAI to detect patterns from user data
+   * Redesigned for friendly, actionable insights
    */
   private static async detectPatternsWithAI(userData: any, userProfile: any | null): Promise<DetectedPattern[]> {
     try {
       // Prepare data summary for AI
       const dataSummary = this.prepareDataSummary(userData)
 
-      // 1. Determine System Persona
-      let systemPrompt = 'You are an expert cognitive behavioral therapist and data analyst specializing in identifying behavioral patterns from journal data.'
-      
-      if (userProfile) {
-        const { PersonalizationService } = await import('@/lib/personalization-service')
-        systemPrompt = PersonalizationService.generateSystemPrompt(userProfile)
-        // Add specific instruction for pattern detection role
-        systemPrompt += '\n\nROLE: You are acting as an expert analyst identifying behavioral patterns. Use the persona above to frame your INSIGHTS and SUGGESTIONS, but remain objective in your detection.'
-      }
+      // Warm, friendly system prompt
+      const systemPrompt = `You are a supportive friend who's great at spotting patterns in someone's life.
+You communicate discoveries with excitement and warmth, like telling a friend "Hey, I noticed something cool!"
+You focus on patterns that are actually useful and actionable.
+You never sound clinical or like a robot - you sound like a real person who genuinely cares.`
 
-      const prompt = `Analyze the user's behavioral patterns from their journal entries, mood data, and daily activities.
+      const prompt = `Look through this person's journal data and find patterns that could actually help them feel better.
 
-DATA SUMMARY:
+THEIR DATA:
 ${dataSummary}
 
-IMPORTANT: This may be a limited dataset (possibly same-day entries). Focus on identifying ANY meaningful patterns, even from limited data.
+FIND PATTERNS THAT ARE:
+1. 🏃 ACTIVITY PATTERNS: "On days you [did X], your mood was [Y] points higher!"
+2. 📅 TIME PATTERNS: "Your [day of week] tend to be [higher/lower] - here's what might help"
+3. 💭 THEME PATTERNS: "I notice [topic] comes up a lot - let's explore that"
+4. 🔗 CONNECTIONS: "When [A] happens, [B] tends to follow"
 
-Your task is to identify behavioral patterns. Look for:
+MAKE THEM EXCITING & USEFUL:
+- BAD: "Correlation detected between exercise and mood improvement"
+- GOOD: "Here's something cool: on days you exercised, your mood was 2.3 points higher! 🎯"
 
-1. ACTIVITY CORRELATIONS: Activities that correlate with mood changes
-   Example: "Exercise-Mood Link" - exercising correlates with better mood
-   (Look for at least 2 occurrences of same activity with mood data)
+- BAD: "Weekly pattern: lower mood on Mondays"
+- GOOD: "Mondays seem rough (avg 5.2) - but Tuesdays bounce back (avg 7.1). What if we made Monday mornings easier?"
 
-2. THEME PATTERNS: Emotional or topical themes in journal entries
-   Example: "Work Anxiety Theme" - mentions of work-related stress
-   (Even 2-3 entries can show a theme if consistent)
-
-3. MOOD VARIANCE: Significant mood changes between entries
-   Example: "Mood Volatility Pattern" - fluctuating between high and low moods
-   (Look at mood score differences)
-
-4. CORRELATION PATTERNS: Multiple factors that combine to affect mood
-   Example: "Activity-Mood Link" - certain activities + mood patterns
-   (Look for any correlations, even with minimal data)
-
-REQUIREMENTS:
-- Identify patterns even with limited data (2-3 occurrences acceptable for testing)
-- For same-day entries, focus on activity correlations and themes rather than temporal patterns
-- Calculate confidence scores (0.0-1.0) - lower confidence (0.5-0.7) is OK for limited data
-- Provide specific, actionable insights
-- Include evidence (dates, mood scores, specific examples)
-- Even with limited data, try to find at least 1-2 meaningful patterns if possible
-
-Respond in JSON format with an array of patterns:
+Respond in JSON:
 {
   "patterns": [
     {
-      "type": "temporal|activity|theme|correlation",
-      "name": "Short descriptive name (max 40 chars)",
-      "description": "Detailed explanation of the pattern (2-3 sentences)",
+      "type": "activity|temporal|theme|correlation",
+      "name": "Short, catchy name with emoji (max 40 chars). Example: '🏃 Exercise = Better Days!'",
+      "description": "What you found, in plain language. Use actual numbers. Sound excited! (2 sentences max)",
       "confidence": 0.85,
       "evidence": {
-        "dates": ["2024-11-04", "2024-11-11", "2024-11-18"],
-        "moodScores": [4, 3, 4],
-        "sentimentScores": [-0.3, -0.4, -0.2],
-        "activities": ["work", "meetings"],
+        "dates": ["2024-11-04"],
+        "moodScores": [7, 8],
+        "sentimentScores": [0.5],
+        "activities": ["walking"],
         "dayOfWeek": "Monday",
-        "context": "Brief description of evidence"
+        "context": "Brief evidence summary"
       },
-      "insights": "Why this pattern matters and what it reveals about user's behavior (2-3 sentences)",
-      "suggestions": "Specific, actionable steps to address this pattern (2-3 concrete suggestions)"
+      "insights": "Why this matters for THEM. What their data is telling them. Be specific! (1-2 sentences)",
+      "suggestions": "ONE specific thing to try this week. Make it so concrete they can picture doing it. Example: 'Try a 10-min walk before breakfast on 2 mornings this week.'"
     }
   ]
 }
 
-Return ONLY valid JSON. Include 2-5 most significant patterns (or empty array if none found).`
+RULES:
+- Use real numbers from their data
+- Sound like an excited friend sharing a discovery
+- Make each "suggestions" so specific they can do it tomorrow
+- Max 3 patterns - only the most useful ones
+- If there's not enough data, return fewer patterns (that's okay!)`
 
       const response = await openai.chat.completions.create({
-        model: GPT_MODEL_STANDARD, // Use Standard for better pattern recognition
+        model: GPT_MODEL_STANDARD,
         messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
         ],
-        temperature: 0.3, // Lower temperature for more consistent analysis
-        max_tokens: 2000,
+        temperature: 0.7,
+        max_tokens: 1500,
         response_format: { type: 'json_object' },
       })
 
       const result = parseAIJSON<{ patterns: DetectedPattern[] }>(
-        response.choices[0].message.content || '', 
+        response.choices[0].message.content || '',
         { patterns: [] }
       )
-      
+
       return result.patterns || []
     } catch (error) {
       console.error('Pattern detection error:', error)
@@ -285,7 +267,7 @@ Return ONLY valid JSON. Include 2-5 most significant patterns (or empty array if
       .map((entry: any) => {
         // Anonymize and truncate content for privacy and token limits
         const safeTitle = anonymizeText(entry.title).substring(0, 50)
-        return `${format(entry.createdAt, 'MMM dd')}: "${safeTitle}" (mood: ${entry.moodRating}/10, sentiment: ${entry.sentimentLabel || 'neutral'})`
+        return `${formatInToronto(entry.createdAt, 'MMM dd')}: "${safeTitle}" (mood: ${entry.moodRating}/10, sentiment: ${entry.sentimentLabel || 'neutral'})`
       })
       .join('\n')
 
@@ -298,7 +280,7 @@ Return ONLY valid JSON. Include 2-5 most significant patterns (or empty array if
     const summary = `
 OVERVIEW:
 - Total journal entries: ${entries.length}
-- Date range: ${format(entries[0]?.createdAt || new Date(), 'MMM dd')} to ${format(entries[entries.length - 1]?.createdAt || new Date(), 'MMM dd')}
+- Date range: ${formatInToronto(entries[0]?.createdAt || new Date(), 'MMM dd')} to ${formatInToronto(entries[entries.length - 1]?.createdAt || new Date(), 'MMM dd')}
 - Average mood: ${avgMood.toFixed(1)}/10
 - Average sentiment: ${avgSentiment.toFixed(2)} (-1 to 1 scale)
 - Goals set: ${goals.length} (${goals.filter((g: any) => g.completed).length} completed)
@@ -404,6 +386,7 @@ ${dayLogs.slice(-5).map((log: any) => anonymizeText(log.dailyInsight || '')).fil
 
   /**
    * AI-powered smart prompt generation based on patterns
+   * Redesigned for warm, conversational prompts
    */
   static async generateSmartPrompt(userId: string, userProfile: any | null): Promise<string | null> {
     try {
@@ -418,44 +401,31 @@ ${dayLogs.slice(-5).map((log: any) => anonymizeText(log.dailyInsight || '')).fil
         return null // No context to generate smart prompt
       }
 
-      // 1. Determine System Persona
-      let systemPrompt = 'You are a warm, supportive life coach who helps people reflect on their experiences.'
-      
-      if (userProfile) {
-        const { PersonalizationService } = await import('@/lib/personalization-service')
-        systemPrompt = PersonalizationService.generateSystemPrompt(userProfile)
-      }
+      const systemPrompt = `You're a supportive friend helping someone reflect on their day.
+You sound warm and casual, like texting a close friend.
+You ask questions that make people think, not just "how was your day?"
+Keep it short - one question that gets right to the point.`
 
-      const prompt = `Generate ONE concise journaling prompt for today.
+      const prompt = `Create ONE journaling prompt for this person. Make it specific to them!
 
-CONTEXT:
-${activePatterns.length > 0 ? `
-Active Behavioral Patterns:
-${activePatterns.map((p: { name: string; insights: string }) => `- ${p.name}: ${p.insights}`).join('\n')}
-` : ''}
+WHAT WE KNOW:
+${activePatterns.length > 0 ? `Patterns we've noticed: ${activePatterns.map((p: { name: string }) => p.name).join(', ')}` : ''}
+${todayLog?.morningIntention ? `Their intention today: "${todayLog.morningIntention}"` : ''}
+${lastEntry ? `Last entry: "${lastEntry.title}" (mood: ${lastEntry.moodRating}/10)` : ''}
+${activeGoals.length > 0 ? `Goals they're working on: ${activeGoals.map((g: { title: string }) => g.title).join(', ')}` : ''}
 
-${activeGoals.length > 0 ? `
-Active Goals:
-${activeGoals.map((g: { title: string; targetDate: Date | null }) => `- ${g.title}${g.targetDate ? ` (Target: ${format(g.targetDate, 'MMM dd, yyyy')})` : ''}`).join('\n')}
-` : ''}
+GENERATE A PROMPT THAT:
+- References something specific to THEM (their intention, pattern, or last entry)
+- Asks something they can answer in 2-3 sentences
+- Sounds like a friend checking in, not an app
 
-${todayLog?.morningIntention ? `Today's Intention: "${todayLog.morningIntention}"` : ''}
+EXAMPLES:
+- "You said you wanted to focus on [intention] today - how's that going so far?"
+- "Your mood was a [X] last time - what's shifted since then?"
+- "We noticed [pattern]. Did you experience that today?"
+- "What's one thing that surprised you today?"
 
-${lastEntry ? `Last Journal Entry (${format(lastEntry.createdAt, 'MMM dd')}): "${lastEntry.title}" (mood: ${lastEntry.moodRating}/10)` : ''}
-
-Generate a thoughtful, personalized prompt that:
-1. Acknowledges their patterns or intention if mentioned
-2. Encourages reflection
-3. Is specific and actionable
-4. Is 1-2 sentences max
-5. Feels conversational, not clinical
-
-Examples:
-- "You mentioned wanting to [intention]. What small step could you take today?"
-- "We noticed [pattern]. How are you feeling about that today?"
-- "Reflect on one thing that brought you joy recently. What made it special?"
-
-Return ONLY the prompt text, nothing else.`
+Return ONLY the prompt (1-2 sentences max). No quotes, no intro, just the prompt.`
 
       const response = await openai.chat.completions.create({
         model: GPT_MODEL_FAST,
@@ -481,8 +451,8 @@ Return ONLY the prompt text, nothing else.`
   }
 
   private static async getTodayLog(userId: string) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Use Toronto timezone for consistent date handling
+    const today = getTodayInTimezone()
 
     return await prisma.dayLog.findUnique({
       where: {

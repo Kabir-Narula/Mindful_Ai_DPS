@@ -1,11 +1,11 @@
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { format } from 'date-fns'
-import { Brain, Calendar, TrendingUp, Award, Lightbulb, ArrowRight } from 'lucide-react'
+import { Brain, TrendingUp, Lightbulb, ArrowRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import TriggerInsightsButton from '@/components/dashboard/trigger-insights-button'
 import { Badge } from '@/components/ui/badge'
+import { formatUTCDate, formatInToronto } from '@/lib/timezone'
 
 export default async function InsightsPage() {
     const user = await getCurrentUser()
@@ -54,40 +54,61 @@ export default async function InsightsPage() {
                 </div>
 
                 {patterns.length === 0 ? (
-                     <div className="text-center py-12 border border-dashed border-gray-300 rounded-lg">
-                        <Award className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-400 italic">Journal more to reveal your hidden patterns.</p>
+                    <div className="text-center py-16 border border-dashed border-gray-300 rounded-lg bg-gray-50/50">
+                        <span className="text-4xl mb-4 block">✨</span>
+                        <p className="text-gray-500 text-lg mb-2">No patterns yet</p>
+                        <p className="text-gray-400 text-sm max-w-md mx-auto">
+                            Keep journaling for a few more days - I'm looking for things that could genuinely help you!
+                        </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {patterns.map((p, i) => (
-                            <Card key={p.id} className={`p-8 border-2 ${i === 0 ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-100'} hover:shadow-xl transition-all duration-500 group`}>
-                                <div className="flex justify-between items-start mb-6">
-                                    <Badge variant="outline" className={`${i === 0 ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-500'} uppercase tracking-wider text-[10px]`}>
-                                        {p.type}
-                                    </Badge>
-                                    <span className={`font-mono text-xs ${i === 0 ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        {Math.round(p.confidence * 100)}% MATCH
-                                    </span>
-                                </div>
-                                <h3 className={`text-2xl font-serif font-bold mb-4 leading-tight ${i === 0 ? 'text-white' : 'text-gray-900'}`}>
-                                    {p.type.split('_').join(' ')}
-                                </h3>
-                                <p className={`text-lg leading-relaxed mb-6 ${i === 0 ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    {p.description}
-                                </p>
-                                {p.insights && (
-                                    <div className={`p-4 rounded ${i === 0 ? 'bg-gray-800/50' : 'bg-amber-50/50'}`}>
-                                        <div className="flex items-start gap-3">
-                                            <Lightbulb className={`h-5 w-5 mt-1 ${i === 0 ? 'text-amber-400' : 'text-amber-600'}`} />
-                                            <p className={`text-sm italic ${i === 0 ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                "{JSON.parse(JSON.stringify(p.insights))[0] || "Keep reflecting."}"
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {patterns.map((p, i) => {
+                            return (
+                                <Card key={p.id} className={`p-6 border ${i === 0 ? 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200' : 'bg-white border-gray-100'} hover:shadow-lg transition-all duration-300`}>
+                                    {/* Pattern header */}
+                                    <div className="flex justify-between items-start mb-4">
+                                        <Badge variant="outline" className="bg-white/80 border-gray-200 text-gray-600 capitalize text-xs">
+                                            {p.type.replace('_', ' ')}
+                                        </Badge>
+                                        <span className="text-xs text-gray-400 font-medium">
+                                            {Math.round(p.confidence * 100)}% confidence
+                                        </span>
+                                    </div>
+
+                                    {/* Pattern description - this is now the main friendly message */}
+                                    <p className="text-gray-800 text-lg leading-relaxed mb-4">
+                                        {p.description}
+                                    </p>
+
+                                    {/* Insight - why it matters */}
+                                    {p.insights && (
+                                        <div className="p-4 rounded-lg bg-amber-50/80 border border-amber-100 mb-4">
+                                            <div className="flex items-start gap-3">
+                                                <Lightbulb className="h-4 w-4 mt-0.5 text-amber-600 shrink-0" />
+                                                <p className="text-sm text-amber-800">
+                                                    {typeof p.insights === 'string' ? p.insights :
+                                                        Array.isArray(p.insights) ? p.insights[0] :
+                                                            'This pattern could help you understand yourself better.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Suggestion - what to try */}
+                                    {p.suggestions && (
+                                        <div className="p-4 rounded-lg bg-green-50/80 border border-green-100">
+                                            <p className="text-sm font-medium text-green-800 mb-1">💡 Try this:</p>
+                                            <p className="text-sm text-green-700">
+                                                {typeof p.suggestions === 'string' ? p.suggestions :
+                                                    Array.isArray(p.suggestions) ? p.suggestions[0] :
+                                                        'Pay attention to this pattern this week.'}
                                             </p>
                                         </div>
-                                    </div>
-                                )}
-                            </Card>
-                        ))}
+                                    )}
+                                </Card>
+                            )
+                        })}
                     </div>
                 )}
             </section>
@@ -97,7 +118,7 @@ export default async function InsightsPage() {
                 {/* Left Column: Weekly Reflections */}
                 <div className="lg:col-span-7 space-y-12">
                     <div className="border-b border-gray-900 pb-4 mb-8">
-                         <h2 className="text-3xl font-serif font-bold text-gray-900">Weekly Synthesis</h2>
+                        <h2 className="text-3xl font-serif font-bold text-gray-900">Weekly Synthesis</h2>
                     </div>
 
                     {reflections.length === 0 ? (
@@ -108,7 +129,7 @@ export default async function InsightsPage() {
                                 <article key={r.id} className="group">
                                     <div className="flex items-baseline justify-between mb-4">
                                         <time className="text-xs font-bold tracking-widest uppercase text-gray-400">
-                                            Week of {format(r.weekOf, 'MMMM d, yyyy')}
+                                            Week of {formatUTCDate(r.weekOf, 'MMMM d, yyyy')}
                                         </time>
                                         {r.moodTrend === 'improving' && (
                                             <span className="flex items-center text-xs text-emerald-600 font-bold uppercase tracking-wider gap-1">
@@ -116,7 +137,7 @@ export default async function InsightsPage() {
                                             </span>
                                         )}
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div>
                                             <h4 className="font-serif font-bold text-xl mb-2 text-gray-900">High Point</h4>
@@ -148,7 +169,7 @@ export default async function InsightsPage() {
                                 {cbtExercises.map(ex => (
                                     <div key={ex.id} className="relative pl-6 border-l border-gray-200">
                                         <div className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full bg-gray-300"></div>
-                                        <p className="text-xs text-gray-400 mb-2">{format(ex.createdAt, 'MMM d')}</p>
+                                        <p className="text-xs text-gray-400 mb-2">{formatInToronto(ex.createdAt, 'MMM d')}</p>
                                         <p className="text-sm text-gray-500 line-through decoration-gray-300 italic mb-2">
                                             "{ex.originalThought}"
                                         </p>

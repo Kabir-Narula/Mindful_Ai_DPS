@@ -14,19 +14,20 @@ export default function TriggerInsightsButton() {
   const handleTrigger = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/dashboard/insights/trigger', {
+      // Use the main patterns API endpoint (consolidated from duplicate trigger route)
+      const res = await fetch('/api/patterns', {
         method: 'POST',
       })
-      
+
       if (!res.ok) throw new Error('Failed to analyze patterns')
-      
+
       const data = await res.json()
-      
+
       toast({
         title: 'Analysis Complete',
         description: `Found ${data.patterns.length} new patterns. Refreshing...`,
       })
-      
+
       // Force refresh to show new data
       window.location.reload()
     } catch (error) {
@@ -42,8 +43,8 @@ export default function TriggerInsightsButton() {
 
   return (
     <div className="flex justify-end mb-6">
-      <Button 
-        onClick={handleTrigger} 
+      <Button
+        onClick={handleTrigger}
         disabled={loading}
         className={cn(
           "bg-amber-600 hover:bg-amber-700 text-white gap-2",

@@ -13,7 +13,12 @@ export function getMoodEmoji(moodRating: number): string {
   return '😢'
 }
 
+/**
+ * @deprecated Use formatInToronto from lib/timezone.ts instead for timezone-aware formatting
+ */
 export function formatDate(date: Date | string): string {
+  // This uses browser locale which may not match Toronto timezone
+  // Consider using formatInToronto from lib/timezone.ts instead
   const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('en-US', {
     month: 'short',

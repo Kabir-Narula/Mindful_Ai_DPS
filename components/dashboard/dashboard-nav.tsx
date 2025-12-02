@@ -90,39 +90,47 @@ export default function DashboardNav({ user }: DashboardNavProps) {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-gray-100/80 shadow-sm">
         <div className="max-w-[1600px] mx-auto px-4 md:px-8">
-          <div className="flex items-center justify-between h-16 md:h-20">
+          <div className="flex items-center justify-between h-16 md:h-[72px]">
             <div className="flex items-center gap-8">
               {/* Mobile Menu Trigger */}
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden">
-                    <Menu className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="md:hidden hover:bg-gray-100/80 rounded-xl">
+                    <Menu className="h-5 w-5 text-gray-700" />
                     <span className="sr-only">Open menu</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                <SheetContent side="left" className="w-[300px] sm:w-[350px] border-r-0 shadow-2xl">
                   <SheetHeader>
-                    <SheetTitle className="font-serif text-left text-xl">Mindful AI</SheetTitle>
+                    <SheetTitle className="font-serif text-left text-xl flex items-center gap-3">
+                      <div className="h-8 w-8 bg-gradient-to-br from-gray-900 to-gray-700 text-white flex items-center justify-center rounded-xl">
+                        <Brain className="h-4 w-4" />
+                      </div>
+                      Mindful AI
+                    </SheetTitle>
                   </SheetHeader>
-                  <div className="flex flex-col gap-4 mt-8">
+                  <div className="flex flex-col gap-2 mt-8">
                     {navItems.map((item) => (
                       <Link
                         key={item.href}
                         href={item.href}
                         onClick={() => setMobileMenuOpen(false)}
                         className={cn(
-                          "text-lg font-medium transition-colors hover:text-primary",
-                          pathname === item.href ? "text-primary font-bold" : "text-muted-foreground"
+                          "text-base font-medium transition-all px-4 py-3 rounded-xl",
+                          pathname === item.href
+                            ? "bg-gray-100 text-gray-900 font-semibold"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                         )}
                       >
                         {item.label}
                       </Link>
                     ))}
-                    <Button 
-                      variant="outline" 
-                      className="mt-4 justify-start gap-2"
+                    <div className="border-t border-gray-100 my-4" />
+                    <Button
+                      variant="outline"
+                      className="justify-start gap-3 h-12 rounded-xl border-gray-200 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 transition-all"
                       onClick={() => {
                         setMobileMenuOpen(false)
                         setChatOpen(true)
@@ -135,15 +143,17 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 </SheetContent>
               </Sheet>
 
-              <Link href="/dashboard" className="flex items-center gap-2 md:gap-3 group">
-                <div className="h-8 w-8 bg-primary text-primary-foreground flex items-center justify-center rounded-sm group-hover:opacity-90 transition-opacity">
+              <Link href="/dashboard" className="flex items-center gap-3 group">
+                <div className="h-9 w-9 bg-gradient-to-br from-gray-900 to-gray-700 text-white flex items-center justify-center rounded-xl shadow-sm group-hover:shadow-md transition-shadow">
                   <Brain className="h-4 w-4" />
                 </div>
-                <span className="text-lg font-serif font-bold tracking-tight text-foreground hidden sm:inline-block">Mindful AI</span>
+                <span className="text-lg font-serif font-bold tracking-tight text-gray-900 hidden sm:inline-block">
+                  Mindful AI
+                </span>
               </Link>
 
               {/* Desktop Nav */}
-              <div className="hidden md:flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-1">
                 {navItems.map((item) => {
                   const isActive = pathname === item.href
                   return (
@@ -151,8 +161,10 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        "text-sm font-medium tracking-wide transition-colors hover:text-foreground",
-                        isActive ? "text-foreground border-b-2 border-primary pb-1" : "text-muted-foreground"
+                        "text-sm font-medium tracking-wide transition-all px-4 py-2 rounded-lg",
+                        isActive
+                          ? "text-gray-900 bg-gray-100"
+                          : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                       )}
                     >
                       {item.label}
@@ -162,12 +174,12 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-1 md:gap-2">
               {/* Chat Trigger (Desktop) */}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="hidden md:flex"
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden md:flex h-10 w-10 rounded-xl hover:bg-purple-50 hover:text-purple-600 transition-colors"
                 onClick={() => setChatOpen(true)}
                 title="Chat with AI Companion"
               >
@@ -177,25 +189,28 @@ export default function DashboardNav({ user }: DashboardNavProps) {
               {/* User Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                    <Avatar className="h-9 w-9 md:h-10 md:w-10 rounded-full border border-border">
-                      <AvatarFallback className="bg-muted text-muted-foreground font-medium">
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-xl hover:bg-gray-100">
+                    <Avatar className="h-9 w-9 rounded-xl border-2 border-gray-200 shadow-sm">
+                      <AvatarFallback className="bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 font-semibold text-sm rounded-xl">
                         {getInitials(user.name, user.email)}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
+                <DropdownMenuContent className="w-56 rounded-xl shadow-xl border-gray-200/80" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal px-4 py-3">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user.name || 'User'}</p>
-                      <p className="text-xs leading-none text-muted-foreground">
+                      <p className="text-sm font-semibold leading-none text-gray-900">{user.name || 'User'}</p>
+                      <p className="text-xs leading-none text-gray-500">
                         {user.email}
                       </p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer">
+                  <DropdownMenuSeparator className="bg-gray-100" />
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer mx-2 mb-2 rounded-lg"
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>
